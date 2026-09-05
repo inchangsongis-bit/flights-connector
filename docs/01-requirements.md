@@ -309,43 +309,82 @@ Consequences:
 | **P4** | Risk and legality | OTP history, visa matrix, curfews, MCT table | "Will this work, and am I allowed?" |
 | **P5** | Booking handoff, saved trips, alerts | Deeplinks, affiliate | "Let me actually go" |
 
-**P2 is the minimum viable product.** P1 on its own is a route-graph browser, not a
-connection finder — it cannot tell an overnight from a 40-minute sprint.
+**P2 is the minimum viable product**, and under D-1/D-2/D-3 it is also the whole of v1.
+P1 on its own is a route-graph browser, not a connection finder — it cannot tell an overnight
+from a 40-minute sprint — and §9.1 folds it into P2 anyway.
 
 ---
 
-## 9. Open questions
+## 9. Decisions
 
-These need answers before design starts; several change the architecture.
+Settled 2026-09-05. These resolve most of the original open questions and constrain §8.
 
-- **OQ-1 — Scope.** Frontier/US-domestic only, or global (which UC-2 requires)? These are
-  two different data pipelines and two different cost profiles. Recommend: build the engine
-  source-agnostic, ship Frontier first because its data is free.
-- **OQ-2 — Goal ordering.** Is the point *saving money*, or *deliberately visiting the
-  layover city*? It flips the ranking function — the first minimizes layover cost, the
-  second maximizes layover quality and would want "which cities are worth a night?" data.
-  Possibly both, as a mode switch.
-- **OQ-3 — Prices in v1, or routings only?** Routings-only is dramatically cheaper and
-  legally simpler. Prices are what make FR-20 possible. Recommend routings + times first,
-  prices in P3.
-- **OQ-4 — Wording check.** The brief says "overnight layovers in cities of their origin."
-  Read as *intermediate* cities en route (per the Seattle → Tokyo → Seoul example). Confirm
-  that's the intent and not something narrower.
-- **OQ-5 — Personal tool or public product?** Drives §7 entirely, and whether licensed data
-  is affordable.
-- **OQ-6 — Data budget.** $0, under $50/month, or more? §4 and `03-data-sources.md` fork on
-  this answer more than on anything else.
-- **OQ-7 — Platform.** Web only, or web plus a native/mobile build? The bundled-data
-  approach (NFR-6) has to be decided early if mobile is in scope.
-- **OQ-8 — Round trips.** Independent one-ways in v1, or true round-trip optimization?
+| # | Decision | Consequence |
+|---|---|---|
+| **D-1** | **Global / international first.** Build for UC-2 (Seattle → Japan → Seoul); UC-1 follows behind the same engine | Needs a global schedule feed. Frontier-shaped data is insufficient. The routing engine stays source-agnostic regardless |
+| **D-2** | **Routings and times only in v1. No prices.** | FR-19/FR-20 (cost model, through-fare baseline) move out of MVP to P3. Removes the most expensive and most legally fraught dependency. The novel part — "can I overnight in Tokyo on my dates?" — survives intact |
+| **D-3** | **$0 data budget. Free tiers only.** | Drives §9.1 below. This is the binding constraint, not D-1 |
+| **D-4** | **Personal tool now, public later.** | Lighter disclaimers acceptable *for now*, but no architecture that only works under a personal-use exemption, and no data source whose license forbids later redistribution. Keep the licensing exit open |
 
----
+### 9.1 The tension D-1 and D-3 create — and how it resolves
+
+Global schedule coverage at zero cost is the hardest corner of the matrix. Free tiers are
+metered in requests per month, and the naive search shape (§4.1) burns 2×N requests per user
+search. At a free tier's quota that supports roughly a handful of searches per month. Unusable.
+
+**The fix is a change of query shape, and it should be locked in before any code:**
+
+> **Query by airport-day, not by origin–destination pair.**
+
+Instead of asking a vendor "price A → C on date D" once per candidate gateway, ask
+"give me the **departure board for airport A on date D**" — one request returning every
+flight leaving A that day, with times and destinations. Then fetch the departure board for
+each candidate gateway C on date D or D+1.
+
+Why this changes the economics:
+
+- **Requests collapse.** A search becomes `1 + (number of gateways actually examined)`
+  requests, not `2 × N`. Most vendors' airport-schedule endpoints cost the same as a
+  point-to-point query.
+- **Cache hit rate becomes enormous.** A departure board for NRT on 2026-11-14 is identical
+  for every user and every origin/destination pair. Under D-4 (personal tool) the cache is
+  effectively permanent for near-dated queries. Cache by `(airport, date)` and a free tier
+  goes a long way.
+- **It matches what the engine actually needs.** The connection-building logic wants "what
+  leaves A that day" and "what leaves C the next morning" — which *is* a departure board.
+  The point-to-point search shape was always a worse fit for this problem.
+- **It makes gateway discovery free.** Board for A on day D *is* the candidate gateway list.
+  No separate route-graph source needed.
+
+The cost is a fatter local pipeline: boards must be stored, indexed by airport-day, and
+joined locally. That is cheap work and entirely under our control, and it is what makes
+NFR-6 (bundled/offline reference data) natural rather than bolted on.
+
+**Consequence for §8:** P1 (route-graph explorer) is largely absorbed into P2, since the
+departure boards yield the graph for free. Go more or less straight to P2.
+
+### 9.2 Still open
+
+- **OQ-A — Wording check.** The brief says "overnight layovers in cities of their origin."
+  This document reads that as *intermediate* cities en route, per the Seattle → Tokyo → Seoul
+  example. Confirm that is the intent.
+- **OQ-B — Ranking under D-2.** With no prices, what sorts the results? Total elapsed time,
+  layover length, gateway desirability, or fewest-risk? Probably needs to be user-selectable,
+  but the default matters.
+- **OQ-C — Date flexibility depth.** FR-2's ± N days multiplies airport-day fetches linearly.
+  Under D-3, what is N? Suggest ± 3 to start.
+- **OQ-D — Platform.** Web only, or web plus a native/mobile build? The bundled-data approach
+  (NFR-6) needs deciding early if mobile is in scope.
+- **OQ-E — Round trips.** Independent one-ways in v1, or true round-trip optimization?
 
 ## 10. Success criteria
 
-The app is working when, for `SEA → ICN, departing in 3 weeks, 1 checked bag, US passport,
-overnight allowed`, it returns a routing via a Japanese or Taiwanese gateway with **real**
-scheduled times, states the layover in hours and how many nights, warns about bag recheck
-and immigration, confirms the passport is fine for entry, prices both legs plus a hotel,
-and shows that total next to the cheapest nonstop — and the user can then go book both legs
-and have the trip actually work.
+**v1 (under D-2, no prices).** For `SEA → ICN, departing in 3 weeks, 1 checked bag, US
+passport, overnight allowed`, the app returns a routing via a Japanese or Taiwanese gateway
+with **real** scheduled times from a real schedule feed, states the layover in hours and how
+many nights, correctly handles the date-line and DST crossing, warns about bag recheck and
+immigration, flags whether NRT/HND-style airport changes are involved, notes the passport is
+fine for entry, and deep-links the user out to book each leg — and the trip actually works.
+
+**Later (P3).** The same result also prices both legs plus a hotel and shows that total next
+to the cheapest published nonstop, so the user can see whether it was worth it.

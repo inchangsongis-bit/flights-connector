@@ -2,6 +2,12 @@
 
 Companion to [`02-data-model.md`](./02-data-model.md).
 
+> **Decisions in force** (see [requirements §9](./01-requirements.md#9-decisions)):
+> **D-1** global first · **D-2** routings and times only, no prices in v1 · **D-3** $0 budget,
+> free tiers only · **D-4** personal now, public later.
+> These narrow this document sharply — §3 (fares) and §5 (hotels) are deferred to P3, and
+> §2 is evaluated on *free-tier request quota and forward-schedule depth*, not on price.
+
 > **Confidence marking.** Vendor terms and pricing move constantly and several claims below
 > come from secondary sources (aggregator blogs), not vendor pages. Anything marked
 > ⚠️ **verify** must be confirmed directly with the vendor before it is designed around.
@@ -129,26 +135,63 @@ that is labelled rough beats an integration that delays P2.
 
 ## 6. Recommended path
 
-Assuming a small budget and OQ-3 answered as *routings and times first, prices later*:
+Under D-1 + D-3 (global coverage, zero budget) the binding constraint is **free-tier request
+quota**, and the fix is architectural before it is contractual — see
+[requirements §9.1](./01-requirements.md#91-the-tension-d-1-and-d-3-create--and-how-it-resolves):
 
-1. **P1** — OurAirports + timezone shapefile join + a hand-curated metro table. Route graph
-   from whichever schedule vendor is chosen in step 2 (deriving the graph from schedules is
-   cleaner than scraping, and free once you have schedules).
-2. **P2 (the MVP)** — Pick one schedule vendor. **Evaluate Amadeus first** (best coverage
-   for UC-2, and if a workable free tier survives it wins outright), **AeroDataBox second**
-   (cheap, schedules-only is exactly P2's need). Build overnight detection and the
-   feasibility engine against it, behind an interface thin enough that swapping vendors is a
-   day's work, not a rewrite.
-3. **P3** — Add fares from Amadeus or Duffel, plus the FR-20 through-fare baseline. Budget
-   the search fan-out (§4.1) *before* wiring it up.
-4. **P4** — Hand-curated MCT, curfew and visa tables for the top gateways; BTS on-time data
-   for UC-1 risk scoring.
+> **Query by airport-day, not by origin–destination pair.**
 
-**Do this before writing code:** confirm the Amadeus free/test tier status and Duffel's
-search-fee terms directly with each vendor. Those two answers determine the architecture, and
-both are marked ⚠️ above because they could not be verified from here.
+Fetch the **departure board** for an airport on a date — one request returning every
+departure that day — and build connections locally. A search costs `1 + gateways examined`
+requests instead of `2 × N`, boards cache permanently per `(airport, date)` and are shared
+across every search, and the gateway list falls out of the board for free (no separate route
+graph needed). **Evaluate every vendor below primarily on whether it exposes an
+airport-schedule / departure-board endpoint on its free tier**, not on its point-to-point
+search.
 
----
+### Step 1 — Confirm the free tiers (do this before any code)
+
+Both of these are ⚠️ unverified and both could not be reached from this environment:
+
+1. **Amadeus** — does a free tier with *production* quota still exist for new signups, or is
+   it test-environment only? Test-environment schedules are unrealistic and therefore useless
+   for validating overnight detection. If free production quota survives, Amadeus likely wins
+   outright on coverage. If not, it is out under D-3.
+2. **AeroDataBox** (via RapidAPI) — free-tier monthly request allowance, and whether the
+   airport-schedule endpoint is included in it. This is the most promising fallback precisely
+   because it is schedules-without-fares, which is exactly D-2's need, and because its API is
+   already shaped around airport-day queries.
+
+Also check **forward-schedule depth** on whichever wins: many cheap aviation APIs are strong
+on *live status* and weak on *future* schedules, which is backwards for us. Verify you can
+retrieve a departure board for a date 3–6 weeks out, not just today.
+
+### Step 2 — Build P2 against one vendor, behind a thin seam
+
+One interface, roughly `getDepartureBoard(airport, date) -> ScheduledFlight[]`. Every vendor
+in §2 can satisfy that shape. Keep the mapping layer honest so swapping vendors is a day's
+work — under D-3 the chosen free tier may change terms with little notice, and under D-4 a
+paid tier may become viable later.
+
+### Step 3 — Reference data, free and settled
+
+OurAirports + a timezone shapefile join + the hand-curated metro table (§1). No decisions
+needed here; it is all public domain or trivially small.
+
+### Step 4 — Defer
+
+Fares (§3), hotels (§5), and the through-fare baseline are P3 under D-2. Connection rules,
+curfews and visa (§4) are P4 and hand-curated when they arrive. **Do not** integrate a fare
+vendor in v1; it is the single largest cost and complexity item and D-2 removed it.
+
+### Licensing note under D-4
+
+"Personal now, public later" means avoiding any source whose terms would have to be
+renegotiated at launch. Prefer public-domain reference data (OurAirports, BTS) and vendors
+with a documented commercial tier to graduate into. Specifically: do **not** build the
+schedule spine on a scrape, even though it is free and D-4 makes it briefly tempting — it is
+against airline terms of use (LC-1), unreliable for dated schedules, and it is the one
+dependency that cannot be made public later.
 
 ## Sources consulted
 
