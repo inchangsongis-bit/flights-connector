@@ -29,6 +29,23 @@ This app inverts that sort. **The layover is the point, not the penalty.**
 | [`docs/02-data-model.md`](docs/02-data-model.md) | Every data point needed, entity by entity, with phase markers |
 | [`docs/03-data-sources.md`](docs/03-data-sources.md) | Vendor evaluation, the one test that matters, recommended path |
 
+## How it works without paid flight data
+
+No free source of *sold itineraries* exists — Amadeus is gated, Duffel needs a funded account,
+Kiwi is invite-only, Travelpayouts' search API requires 50k monthly users. That blocks
+discovering long layovers hidden inside published connections.
+
+**But the main use case doesn't need one.** A requested multi-city stopover — `SEA → HND` day 1,
+`HND → ICN` day 2 — is *not* a connection. The airline's maximum connect time applies to
+connections its engine builds, not to two origin-destinations you explicitly asked for. It sells
+that as one ticket by design; it's how ANA and JAL free-stopover fares are booked.
+
+So candidates can be assembled from plain schedule data: check both flights actually operate on
+those dates, check one carrier can ticket both, then hand off to the carrier's own multi-city
+search for price and availability. We verify a candidate is *operationally real* — the flights
+fly, the times are right, the carrier can ticket it. The airline confirms the rest, and every
+result says so.
+
 ## The short version
 
 **Airlines already want to sell this.** ANA and JAL both give you a **free first stopover in
@@ -39,10 +56,10 @@ normal flight search, and knowing which carrier's stopover is free can flip a ro
 costing a hotel night to including one.
 
 **Two search modes:**
-- **Discover** — normal `A → B` search, pulled wide and re-ranked by layover quality. Surfaces
-  long layovers in cities you hadn't thought of. One API request. This is the MVP.
-- **Construct** — "Seattle to Seoul, one night in Tokyo" as a multi-city single-ticket search,
-  which is how stopovers are actually priced.
+- **Construct** *(the MVP)* — "Seattle to Seoul, one night in Tokyo." Assembled from free
+  schedule data; see above.
+- **Discover** *(deferred)* — normal `A → B` search re-ranked by layover quality, surfacing long
+  layovers in cities you hadn't thought of. Better UX, needs an itinerary API we can't reach yet.
 
 **Three things that are easy to get wrong:**
 1. **Timezones.** Seattle → Tokyo → Seoul crosses the date line and, seasonally, a DST

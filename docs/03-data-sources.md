@@ -14,94 +14,70 @@ Companion to [`02-data-model.md`](./02-data-model.md). v0.2, rewritten for the
 
 ---
 
-## 1. What changed from v0.1 — and what to un-build
+## 1. The market check — no free itinerary source exists
 
-v0.1 recommended fetching **airport-day departure boards** and assembling connections
-locally, to dodge a `2 × N` request explosion.
+Every source that returns **sold itineraries** was checked. All are out of reach at $0:
 
-**Do not build that.** Under D-5 it is the wrong tool. A departure board tells you a flight
-leaves NRT at 09:00; it cannot tell you whether `SEA → NRT → ICN` is **sold as one ticket**,
-which is now the entire premise. Anything assembled locally from boards is a self-transfer by
-construction — exactly what D-5 cut.
+| Vendor | Status |
+|---|---|
+| **Amadeus Self-Service** | Free *production* tier reportedly closed to new signups ~July 2026 ⚠️. Test environment data is a limited subset. Not reachable for us |
+| **Duffel** | Real itineraries require **live mode with a funded, verified account**. Transparent pricing, but not $0 |
+| **Kiwi Tequila** | Invitation-only for new partners since 2024 ⚠️. Also largely virtual-interlining inventory, which D-5 excludes |
+| **Travelpayouts / Aviasales** | Real-time search API requires **50,000 monthly active users**. The free Data API returns price trends only — no itineraries, no times |
+| **Skyscanner, Google Flights** | No open API. Partner-gated |
+| **OAG / Cirium** | Quote-based, four figures monthly. Evaluation tiers exist ⚠️ but are development-only |
 
-The replacement is the ordinary shape, and it is cheaper anyway:
+**That is the whole market.** Mode A — discovering long layovers buried inside published
+connections — genuinely cannot be built at $0.
 
-> **Ask a vendor for whole itineraries. Filter and re-rank locally.**
+## 2. Why Mode B survives anyway
 
-One request per `(origin, destination, date)`. The vendor does the routing; we do the sort
-order it refuses to offer. This cut request volume by roughly an order of magnitude versus
-v0.1 and makes D-3 comfortably achievable.
+A **requested multi-city stopover is not a connection** ([requirements §8.3](./01-requirements.md#83-why-mode-b-escapes-that--the-v03-insight)).
+The airline's maximum connect time applies to connections its engine *builds*; it does not
+apply to two origin-destinations the passenger explicitly *asked* for. The airline sells that
+as one ticket by design — it is how ANA and JAL free-stopover fares are booked.
 
----
+So a Mode B candidate is constructible from plain schedule data given two things:
 
-## 2. The one vendor test that matters
+1. **Both flights operate on those dates** → a schedule/FIDS source (§3)
+2. **The carriers can be ticketed together** → same carrier or alliance (§5, hand-curated)
 
-Before comparing free tiers, coverage, or anything else, answer this:
+We establish that a candidate is **operationally real**. Price, seat availability and fare
+rules are confirmed by the carrier's own multi-city search, which we deep-link into. That
+boundary is stated on every result (FR-32) and is the honest cost of the $0 path.
 
-> **Does the vendor return itineraries with long and overnight layovers at all?**
+## 3. Schedule sources — evaluate on forward depth first
 
-Many search engines apply their own **maximum connect time** and drop long connections before
-you ever see the response. If a vendor does that, no amount of local filtering recovers them,
-its free tier is irrelevant, and the product cannot be built on it.
+> **The gating question:** how far into the **future** do schedules reach?
+> Many aviation APIs are strong on *live status* and weak on *forward schedules*. A source
+> that stops at +7 days cannot plan a trip. `scripts/schedule-source-test.mjs --probe`
+> answers it in five API calls. **Run it before anything else.**
 
-**Concrete test:** request `SEA → ICN` for a date ~4 weeks out, ask for the maximum number of
-offers the API allows, and check whether anything with a 10h+ layover in Japan or Taiwan comes
-back. Then repeat as a **multi-city** request (`SEA → TYO` day D, `TYO → ICN` day D+1) to
-confirm Mode B works. Both must pass.
+### AeroDataBox — evaluate first
+- **Free tier:** RapidAPI Basic, ~600 units/month, no credit card ⚠️ **verify**
+- **Gives:** airport FIDS (departures/arrivals) with scheduled times, airline, flight number,
+  destination. Claims 100% US schedule coverage, 86% live coverage
+- **Why it fits:** returns **both UTC and local** scheduled times — exactly what NFR-1 needs,
+  and it removes the timezone-join problem for schedule data entirely
+- **Watch:** 12h max window per request (a full day costs two calls), and forward depth is
+  ⚠️ **unverified** — this is what the probe tests
+- **Unit budget:** with the offline route graph (§4) doing the fan-out, a search costs ~3 calls.
+  600 units/month is workable for a personal tool with aggressive `(airport, date)` caching
 
-Secondary checks, in order:
-1. Does it expose a max-connect-time / max-duration parameter we can push outward?
-2. How many offers per response, and can we page for more? (We need breadth, not the "best" few.)
-3. Free-tier monthly request quota.
-4. Does it return **timezone or UTC** per segment, or only local times? Local-only means we
-   join timezones ourselves from §4 — workable, but confirm it up front.
-5. Multi-city / open-jaw support (Mode B, P2).
+### Aviationstack
+Free tier ~100 requests/month, no card ⚠️. Very thin for iterating, and forward-schedule depth
+is the known weak point. Fallback only.
 
----
+### GoFlightLabs / FlightAPI
+Airport schedule endpoints exist; FlightAPI's window is reportedly ~3 days ahead ⚠️, which
+would fail the gating test outright. Check the probe before investing.
 
-## 3. Itinerary vendors
+### FlightAware AeroAPI
+Strong data, forward schedules reportedly up to 12 months. Pay-per-query, not free — but if the
+free tiers all fail the depth test, this is where a small paid tier would buy the most.
 
-### Amadeus Self-Service — evaluate first
-- **Gives:** Flight Offers Search — whole itineraries with segments, times and prices.
-  Supports multi-city. Global, 400+ carriers, strongest fit for D-1.
-- **Cost:** ⚠️ **verify.** Secondary sources claim the free *production* tier closed to new
-  signups around July 2026, leaving a free test environment plus enterprise. The developer
-  portal was unreachable from this environment. **This is the pivot point of the whole
-  sourcing decision — check it first.**
-- **Caveat:** test-environment schedules and prices are unrealistic, so a test key cannot
-  validate §2. You need production access to know whether the product works.
-
-### Duffel
-- **Gives:** Real bookable offers with full segment detail. Multi-city supported.
-- **Cost:** Publicly posted — ~$3 per confirmed order, ~1% managed content, ~$0.005 per search
-  beyond a 1,500:1 search-to-book ratio. ⚠️ **verify**
-- **Now a much better fit than in v0.1.** D-5 collapsed our request volume, so the excess-search
-  fee that was alarming at `2 × N` per search is far less threatening at one.
-- **The trap:** test mode serves only a fictional carrier ("Duffel Airways") with unrealistic
-  schedules. **Real itineraries require live mode with a funded, verified account.** Under D-3
-  that is a genuine obstacle — a funded account is not $0, even if searches are cheap.
-
-### Kiwi.com Tequila — still worth naming, still ruled out
-Would return exactly this shape, but public self-serve access closed in 2024 and new partners
-are invitation-only as of 2026 ⚠️ **verify**. Note also that much of Kiwi's inventory is
-*virtual interlining* — self-transfer — which D-5 excludes. Plan as unavailable.
-
-### Skyscanner / Google Flights
-No open API for this use case; partner/affiliate gated. Google Flights has no public search
-API. Not viable.
-
-### AeroDataBox, Aviationstack, FlightAware, OpenSky — no longer candidates
-All were considered in v0.1 for **schedules** (departure boards). Under D-5 we need
-**sold itineraries**, which none of them provide. AeroDataBox remains useful only as
-airport reference data (§4). OpenSky is live ADS-B positions and was never a fit — noted so
-nobody spends a weekend rediscovering that.
-
-### OAG / Cirium
-Quote-based, four figures monthly for production; Cirium offers a free-transaction Evaluation
-plan ⚠️ **verify**. Out of reach under D-3, but the evaluation tier is worth using to validate
-the data model even if we never buy.
-
----
+### OpenSky
+Live ADS-B positions only. No schedules, forward or otherwise. Named so nobody rediscovers it.
 
 ## 4. Reference data — free and settled
 
@@ -135,30 +111,31 @@ route through. This is a weekend of careful reading, not an integration.
 
 ## 6. Recommended path
 
-**Step 1 — Run the §2 vendor test before writing any application code.**
-Get an Amadeus key first and answer the two questions together: does a usable free tier exist,
-and does it return long-layover itineraries for `SEA → ICN`? Those two answers decide the
-architecture. If Amadeus is out under D-3, price out Duffel live mode as the fallback and
-decide whether funding an account is acceptable — it is the main thing that could force D-3 to
-move.
+**Step 1 — Run the probe.** `RAPIDAPI_KEY=... node scripts/schedule-source-test.mjs --probe`.
+Five calls, answers the only question that can still sink the project (§3). Free RapidAPI
+signup, no card.
 
-**Step 2 — Build P1 behind a thin seam.**
-One interface, roughly `searchItineraries(origin, destination, date) -> ItineraryOffer[]`, plus
-a multi-city variant for P2. Every candidate vendor can satisfy that shape. Keep the mapping
-layer honest so a vendor swap is a day's work — under D-3 a free tier can change terms with
-little notice, and under D-4 a paid tier may become viable later.
+**Step 2 — Start the hand-curated tables now, in parallel.** They need no API and no
+permission, and the stopover-programme table is the highest value-per-row work in the project
+(§5). This is not blocked by Step 1 and should not wait for it.
 
-**Step 3 — Reference data.**
-OurAirports + timezone shapefile join + the hand-written metro table. No decisions needed.
+**Step 3 — Build the offline route graph.** Which carriers fly `A → C` and `C → B`. Free,
+offline, and it does the candidate fan-out at zero API cost — which is what makes a ~600
+unit/month tier viable at all. Seed from OpenFlights (stale, so verify the routes that matter)
+plus hand fixes for the corridors actually used.
 
-**Step 4 — Curate the tables in §5.**
-Stopover programmes first — they are the highest-leverage rows in the project and they need no
-vendor at all, so this work can proceed in parallel with Step 1 and is not blocked by it.
+**Step 4 — Build P1** behind a thin `getDepartures(airport, date)` seam, so the schedule source
+can be swapped when a free tier changes terms.
 
-**Do not:** build departure-board assembly (§1), integrate a separate schedule API, or build a
-route graph. Under D-5 all three are solved by the itinerary vendor.
+**Do not:** wait for itinerary-API access, or build Mode A. Both are deferred by D-6, and Mode B
+is the actual use case.
 
----
+### If the probe fails
+
+In descending order of preference: try another free schedule source (§3); pay ~$5/month for a
+deeper schedule tier — a far smaller ask than an itinerary API, and it moves D-3 only slightly;
+or narrow scope to a bundled, hand-refreshed schedule set for the handful of corridors actually
+flown. The last option is unglamorous but entirely workable for a personal tool.
 
 ## Sources consulted
 
@@ -168,4 +145,7 @@ route graph. Under D-5 all three are solved by the itinerary vendor.
 - [OurAirports data](https://ourairports.com/data/)
 - Stopover programmes: [PassRider stopover list](https://www.passrider.com/stopovers/) · [GetStopover — best programmes 2026](https://www.getstopover.com/blog/best-stopover-programs-2026) · [GetStopover — free hotel programmes](https://www.getstopover.com/blog/free-stopover-hotel-programs-2026)
 - Baggage on long layovers: [View from the Wing — AA longer connections](https://viewfromthewing.com/american-airlines-will-allow-passengers-to-check-bags-on-longer-connections/) · [FlyerTalk — max connection time for through-checked bags](https://www.flyertalk.com/forum/american-airlines-aadvantage/2068265-maximum-connection-time-through-checked-baggage.html)
+- [Travelpayouts — Aviasales Search API access requirements](https://support.travelpayouts.com/hc/en-us/articles/210995808-Requirements-for-Aviasales-Flight-Search-API-access) (50k MAU)
+- [AeroDataBox API](https://aerodatabox.com/api) · [FIDS relative time ranges](https://aerodatabox.com/realtive-fids)
+- [Aviationstack](https://aviationstack.com/)
 - Secondary/aggregator coverage of 2026 API tier changes — treated as unverified leads only

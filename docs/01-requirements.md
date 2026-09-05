@@ -6,8 +6,12 @@
 
 > **v0.2 pivot.** v0.1 planned a *self-transfer* tool that stitched two separately-booked
 > tickets together. That is no longer the product. This app finds **single-ticket
-> itineraries that already contain a long or overnight layover**. See §1.3 for what that
-> deleted and §9 for what it costs us.
+> itineraries that already contain a long or overnight layover**. See §1.3.
+>
+> **v0.3 (2026-09-05).** No free source of *sold itineraries* exists, and paid access is
+> not available to us. **Mode B is promoted to the MVP** — it can be built from plain
+> schedule data, because a requested multi-city stopover is not subject to the airline's
+> maximum connect time. Mode A is deferred until an itinerary API is reachable. See §8.3.
 
 ---
 
@@ -137,24 +141,21 @@ JTBD-1 and JTBD-2 are two genuinely different search modes. See §8.
 
 ## 4. Search modes
 
-### Mode A — Discover (the MVP)
+### Mode B — Construct (the MVP, as of v0.3)
 
-Ordinary `A → B` itinerary search on the user's dates. Pull results **wide** rather than
-sorted-by-best, then filter and re-rank locally for layover length. Surfaces long layovers
-the user didn't know existed, in cities they didn't think of.
+The user names the stopover: *"Seattle to Seoul, one night in Tokyo."* We assemble candidate
+itineraries — `SEA → HND` on day D, `HND → ICN` on day D+1 — from **schedule data**, check the
+carriers can be ticketed together, and hand off to the carrier's own multi-city search to price
+and confirm.
 
-One upstream request per search. This is the whole MVP and it is cheap.
+This is the user's real use case, and §8.3 explains why it is buildable at $0 while Mode A is not.
 
-### Mode B — Construct (stopover)
+### Mode A — Discover (deferred)
 
-User names the city: "Seattle to Seoul, one night in Tokyo." Issue a **multi-city
-single-ticket** search — `SEA → TYO` on date D, `TYO → ICN` on date D+1 — which is how
-stopovers are actually sold and priced, and how ANA/JAL free-stopover fares get built.
-
-Candidate cities come free from Mode A's own results (§8.1), so this needs no extra data
-source. One request per city the user actually asks about — typically one to three, not forty.
-
----
+Ordinary `A → B` itinerary search pulled wide and re-ranked locally, surfacing long layovers in
+cities the user hadn't considered. Strictly better UX, and strictly dependent on an itinerary
+(offer) API we cannot currently reach. Revisit when one becomes available — the engine and data
+model are unchanged by it, only the input source.
 
 ## 5. Functional requirements
 
@@ -236,6 +237,10 @@ Transit-without-visa provisions do not apply.
   night in Tokyo" is the sentence the product exists to produce.
 - **FR-29** Deep link to book.
 - **FR-30** Provenance: source and freshness on every result (NFR-5).
+- **FR-32 State the handoff boundary.** Under v0.3, results are *operationally verified
+  candidates*, not quotes: these flights fly on these dates and this carrier can ticket both.
+  Price, seat availability and fare rules are confirmed in the carrier's multi-city search.
+  Every result must say so — this is the product's single most important honesty requirement.
 - **FR-31** Honest empty state explaining *why* — no long-layover itinerary published, all
   layovers unusable hours, visa-blocked. "No results" alone is useless.
 
@@ -274,39 +279,56 @@ Transit-without-visa provisions do not apply.
 
 ## 8. Architecture consequences
 
-### 8.1 The fan-out problem is gone — and last version's fix is now wrong
+### 8.1 No fan-out problem
 
-v0.1 faced a `2 × N` request explosion (price `A → C` and `C → B` for every candidate gateway
-C) and solved it by querying **airport-day departure boards** and assembling connections
-locally.
+v0.1 faced a `2 × N` request explosion. Under D-5 the vendor returns whole itineraries, and
+under v0.3 the route graph (§8.4) does the candidate filtering offline. Neither mode fans out.
 
-**That approach is now actively wrong and should not be built.** A departure board tells you
-a flight leaves NRT at 09:00. It cannot tell you whether `SEA → NRT → ICN` is *sold as one
-ticket* — which is now the entire premise. Locally-assembled connections are self-transfers
-by construction, and self-transfer is what we just cut.
+### 8.2 Mode A needs an itinerary API. Mode B does not.
 
-The correct shape is the ordinary one:
+Mode A asks "what one-ticket routings exist between A and B?" Only a source that sells tickets
+can answer that. Schedule data cannot: a departure board tells you a flight leaves NRT at 09:00,
+not whether `SEA → NRT → ICN` is sold as one ticket.
 
-> **Ask the vendor for whole itineraries. Filter and re-rank locally.**
+### 8.3 Why Mode B escapes that — the v0.3 insight
 
-- Mode A = **one** request per `(origin, destination, date)`. The vendor does the routing;
-  we do the sorting the vendor refuses to do.
-- Candidate stopover cities for Mode B **fall out of Mode A's results for free** — the set of
-  connection points anyone routes you through. No route graph, no extra source.
-- Mode B = one multi-city request per city the user asks about.
+**A requested multi-city stopover is not a connection.**
 
-This is dramatically kinder to a free tier than v0.1's plan, and simpler to build.
+When an airline's engine builds `A → C → B` as a connection, it applies a **maximum connect
+time** and discards anything longer — which is exactly why long layovers are invisible (§1). But
+a multi-city booking is two explicitly requested origin-destinations. The passenger *asked* to
+stop in C. MaxCT does not apply, and the airline sells it as one ticket by design. It is how
+ANA's and JAL's free-stopover fares are booked in the first place (§1.2).
 
-### 8.2 Pull wide, rank locally
+So a Mode B candidate is constructible from schedule data alone, provided both conditions hold:
 
-The one place we must fight the vendor: it will return the "best" (shortest, cheapest) offers
-by default, which are precisely the ones we don't want. Request the maximum offer count
-available, and where the API exposes a max-connect-time or duration parameter, push it out.
-**Verify during vendor evaluation that long-layover itineraries appear in results at all** —
-if a vendor's engine applies its own MaxCT and drops them, that vendor is unusable no matter
-how good its free tier is. This is the single most important vendor test.
+1. **Both flights actually operate on those dates** — a schedule/FIDS source answers this.
+2. **The carriers can be ticketed together** — same carrier, or interline/alliance partners.
+   A small hand-curated table (§8.5), not an API.
 
----
+The honest limit: we can establish that a candidate is **operationally real** — those flights
+fly, those times are right, one carrier can ticket both. We cannot establish price, seat
+availability, or that the fare rules permit it. **The carrier's own multi-city search confirms
+all three**, and we deep-link the user straight into it. That handoff is the product's boundary,
+and it must be stated plainly on every result (FR-32).
+
+This is a real constraint, not a fudge. It is also close to how a knowledgeable traveller already
+books an ANA stopover by hand — the app removes the part that requires knowing which routings and
+times exist in the first place.
+
+### 8.4 The route graph comes back — for a different reason
+
+v0.1 used a route graph as a cheap pre-filter and v0.2 discarded it (the itinerary vendor did the
+routing). v0.3 needs it again, offline and free: *which carriers fly `A → C` and `C → B` at all?*
+That filters ~40 candidate gateways down to a handful **with zero API calls**, so the metered
+schedule source is only ever queried for a shortlist. Under a ~600-unit/month free tier that
+difference is the difference between working and not.
+
+### 8.5 Ticketability filter
+
+Same carrier is the safe case and covers the motivating example (ANA and JAL both fly
+Seattle–Tokyo and Tokyo–Seoul). Same alliance is usually ticketable. Anything else is a
+"verify with the carrier" warning, not a hidden assumption. ~20 rows, hand-written.
 
 ## 9. Decisions
 
@@ -316,7 +338,9 @@ how good its free tier is. This is the single most important vendor test.
 | **D-2** | Routings and times first; prices are a bonus | Softened — single-ticket search returns a price *with* the itinerary, so basic pricing is nearly free. The FR-28 comparison is now cheap |
 | **D-3** | $0 data budget, free tiers only | Now far more achievable — §8.1 cut request volume by an order of magnitude |
 | **D-4** | Personal tool now, public later | Unchanged |
-| **D-5** | **Single ticket only** | *New, v0.2.* The defining constraint |
+| **D-5** | **Single ticket only** | *v0.2.* The defining constraint |
+| **D-6** | **Mode B first, on free schedule data. Mode A deferred.** | *New, v0.3.* Forced by data access, not preference — no free source of sold itineraries exists. §8.3 |
+| **D-7** | **Ship candidates + handoff, not quotes** | *New, v0.3.* We verify flights operate and can be ticketed together; the carrier confirms price and availability. FR-32 |
 
 ### 9.1 Consequence: Frontier and GoWild drop out of scope
 
@@ -351,27 +375,43 @@ come back as Mode C. Flagged as OQ-B.
 
 ## 11. Phasing
 
-| Phase | Delivers | Answers |
+Reordered by v0.3 — the constraint is data access, not ambition.
+
+| Phase | Delivers | Needs |
 |---|---|---|
-| **P1 — MVP** | Mode A. One itinerary search, UTC-correct layover computation, overnight classification, rank-by-layover | "Which one-ticket routings let me spend a night somewhere on the way?" |
-| **P2** | Mode B multi-city stopover search; candidate cities from P1 results | "Book me Seattle → Seoul with a night in Tokyo" |
-| **P3** | Stopover-program table, bag through-check warnings, visa/entry | "Is the stopover free, do I get my bag, can I enter?" |
-| **P4** | Hotel cost, usable-hours scoring, city desirability, comparison baseline | "Is it worth it?" |
-| **P5** | Saved searches, alerts, booking handoff polish | |
+| **P0** | Prove the schedule source reaches far enough into the future to plan a trip | `scripts/schedule-source-test.mjs`. **Gates everything** — see §11.1 |
+| **P1 — MVP** | Mode B. Route graph → shortlist → real schedules → UTC-correct layover → overnight classification → deep link to the carrier's multi-city search | Free schedule tier + offline route graph + ticketability table |
+| **P2** | Stopover-program table (free stopovers, free hotels), bag through-check warnings, visa/entry | Hand-curated only. **No API needed — can start today, in parallel with P0** |
+| **P3** | Usable-hours scoring, city desirability, hotel cost | Airport ↔ city transfer times |
+| **P4** | Mode A discovery | An itinerary/offer API, if one ever becomes reachable |
 
-**P1 is a genuinely small MVP** — one API call, correct time maths, and a sort order nobody
-else offers.
+### 11.1 The one risk that can still sink this
 
----
+**Forward schedule depth.** Many aviation APIs are strong on *live status* and weak on *future
+schedules*. A source that only reaches 7 days out cannot plan a trip, and no amount of clever
+assembly fixes that. `scripts/schedule-source-test.mjs --probe` answers it in five API calls;
+run it before building anything.
+
+If the free tier turns out to be too shallow, the fallbacks in descending order are: another
+free schedule source; a ~$5/month paid schedule tier (a much smaller ask than an itinerary API,
+and it would move D-3 only slightly); or narrowing scope to a bundled, hand-refreshed schedule
+set for a small number of routes the user actually flies.
 
 ## 12. Success criteria
 
-**P1.** For `SEA → ICN, departing in 3 weeks`, the app returns one-ticket itineraries via
-Tokyo, Osaka or Taipei with layovers of 10h+, shows each layover's real length and local
-arrival/departure times (correct across the date line and DST), classifies which are
-overnight, and ranks the most usable first — where every mainstream search engine buries
-them or drops them entirely.
+**P1 (v0.3 MVP).** For *"Seattle to Seoul, one night in Tokyo, about four weeks out"*, the app
+returns candidate itineraries such as:
 
-**P3.** The same results say "ANA — first stopover in Japan free", warn that a 16-hour
-layover may exceed the carrier's through-check limit, and confirm a US passport enters Japan
-visa-free — each cited and dated.
+> **ANA — SEA → HND → ICN.** Leg 1 NH 107, dep 13:30 SEA, arr 16:20 HND (+1).
+> **Overnight in Tokyo, 16h 40m.** Leg 2 NH 861, dep 09:00 HND, arr 11:35 ICN.
+> Same carrier — ticketable as one multi-city booking. **ANA's first stopover in Japan is
+> free per direction.** Bag through-check beyond 16h: verify with ANA.
+> *Confirm price and availability in ANA's multi-city search →*
+
+— with the layover computed in UTC (correct across the date line and DST), the overnight
+classification correct, and the handoff boundary stated plainly (FR-32).
+
+That is a result no mainstream search engine will show, assembled entirely from free data.
+
+**P2.** The same result carries the stopover-programme detail, the bag warning and the visa
+status, each cited and dated.

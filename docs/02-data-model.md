@@ -20,10 +20,32 @@ Companion to [`01-requirements.md`](./01-requirements.md). v0.2, rewritten for t
 
 ---
 
-## 1. Itinerary offer — what the vendor returns
+> **v0.3.** Under D-6 the app assembles Mode B candidates from schedule data rather than
+> receiving whole offers from a vendor. §1 below describes the offer object as it will arrive
+> **if** an itinerary API ever becomes reachable (Mode A, deferred). For the MVP, the fields
+> marked *v0.3* in §1a are what we actually have — notably **no price**, which is why FR-32
+> requires every result to state the handoff boundary.
 
-The core object. Under D-5 this arrives **whole** from the vendor: one ticket, all segments,
-one price. We no longer assemble it ourselves.
+## 1a. Route graph — offline, free (v0.3)
+
+Restored in v0.3 to do candidate fan-out at zero API cost (requirements §8.4). One row per
+directional carrier-route.
+
+| Field | Need | Why |
+|---|---|---|
+| `origin`, `destination`, `carrier` | REQ | Which carriers fly this pair at all |
+| `source_id`, `checked_at` | REQ | Seeded from OpenFlights (stale — verify the corridors that matter) plus hand fixes |
+
+## 1b. Ticketability (v0.3)
+
+| Field | Need | Why |
+|---|---|---|
+| `carrier_a`, `carrier_b`, `status` | REQ | `same` / `alliance` / `interline` / `unknown`. Decides whether two segments can be one multi-city ticket (requirements §8.5). ~20 hand-written rows; `unknown` becomes a visible warning, never a hidden assumption |
+
+## 1. Itinerary offer — Mode A only, deferred
+
+The object an itinerary vendor returns: one ticket, all segments, one price. Not available on
+the $0 path; retained so the model is ready if access appears.
 
 | Field | Need | Why |
 |---|---|---|
