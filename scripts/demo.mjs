@@ -91,7 +91,9 @@ function render(c) {
 
   if (program) {
     for (const h of program.highlights) {
-      const marker = h.kind === 'hotel_disqualified' ? '  ⚠ ' : '  ★ ';
+      const marker = h.kind === 'hotel_disqualified' ? '  ⚠ '
+        : h.kind === 'below_stopover_threshold' ? '  · '
+          : '  ★ ';
       console.log(`${marker}${h.text}`);
     }
     console.log(`     (${program.carrierName}, ${program.confidence} confidence, checked ${PROGRAMS_CHECKED_AT} — verify with the carrier)`);

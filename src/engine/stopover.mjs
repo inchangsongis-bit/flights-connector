@@ -37,16 +37,33 @@ export function matchStopoverProgram(carrier, airport, layover, chosen = true) {
   };
 
   const fare = p.fare_stopover;
+  // THE 24-HOUR BOUNDARY (data/stopover-programs.json → twenty_four_hour_boundary).
+  // The industry defines a stopover as a break of MORE than 24 hours; ANA states
+  // this explicitly. Below that it is an ordinary connection, and free-stopover
+  // programmes simply do not apply. Advertising one on a 16h overnight would be
+  // straightforwardly false.
+  const minHours = fare?.min_hours ?? 24;
+  const qualifiesAsStopover = hours > minHours;
+
   if (fare?.available === true) {
     out.fareStopover = fare;
-    if (fare.free_per_direction >= 1) {
+    out.qualifiesAsStopover = qualifiesAsStopover;
+    if (fare.free_per_direction >= 1 && qualifiesAsStopover) {
       out.highlights.push({
         kind: 'free_stopover',
         text: `${p.carrier_name}: first stopover free per direction`
           + (fare.additional_fee ? `, second ${fare.additional_fee.amount} ${fare.additional_fee.currency}` : ''),
       });
+    } else if (fare.free_per_direction >= 1) {
+      // Actionable, not just a negative: extending past 24h unlocks the programme.
+      out.highlights.push({
+        kind: 'below_stopover_threshold',
+        text: `Under ${minHours}h this is a connection, not a stopover, so `
+          + `${p.carrier_name}'s free-stopover programme does not apply. It costs no fare premium `
+          + `either. Extend past ${minHours}h to use the programme.`,
+      });
     }
-  } else if (fare?.available === 'unofficial') {
+  } else if (fare?.available === 'unofficial' && qualifiesAsStopover) {
     out.highlights.push({
       kind: 'unofficial',
       text: `${p.carrier_name} publishes no stopover programme, but multi-city pricing is often `

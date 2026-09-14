@@ -35,8 +35,12 @@ describe('ticketability', () => {
 });
 
 describe('matchStopoverProgram', () => {
-  test('ANA at Tokyo surfaces the free first stopover', () => {
-    const m = matchStopoverProgram('NH', 'HND', overnightTokyo);
+  test('ANA at Tokyo surfaces the free first stopover — above 24h', () => {
+    // Updated 2026-09-14: this originally used a 16h layover and asserted the
+    // programme applied. It does not. A stopover is >24h by ANA's own
+    // definition, so the fixture now spans two nights.
+    const twoNights = classifyLayover(jst('2026-09-21T16:20'), jst('2026-09-23T09:00'), 'Asia/Tokyo');
+    const m = matchStopoverProgram('NH', 'HND', twoNights);
     assert.ok(m, 'expected a match for ANA at Haneda');
     const free = m.highlights.find((h) => h.kind === 'free_stopover');
     assert.ok(free, 'expected a free_stopover highlight');
@@ -45,7 +49,8 @@ describe('matchStopoverProgram', () => {
   });
 
   test('carries provenance so the UI can cite and date it', () => {
-    const m = matchStopoverProgram('JL', 'NRT', overnightTokyo);
+    const m = matchStopoverProgram('JL', 'NRT',
+      classifyLayover(jst('2026-09-21T16:20'), jst('2026-09-23T09:00'), 'Asia/Tokyo'));
     assert.equal(m.verifyBeforeDisplay, true);
     assert.ok(m.sources.length > 0);
     assert.ok(m.sources.every((s) => /^\d{4}-\d{2}-\d{2}$/.test(s.checked_at)));
@@ -77,8 +82,9 @@ describe('matchStopoverProgram', () => {
   });
 
   test('EVA is surfaced as unofficial, with no guarantee implied', () => {
+    // >24h so it clears the stopover threshold; below it, nothing should surface.
     const tpe = classifyLayover(
-      new Date('2026-09-21T02:00:00Z'), new Date('2026-09-21T23:00:00Z'), 'Asia/Taipei',
+      new Date('2026-09-21T02:00:00Z'), new Date('2026-09-22T23:00:00Z'), 'Asia/Taipei',
     );
     const m = matchStopoverProgram('BR', 'TPE', tpe);
     const u = m.highlights.find((h) => h.kind === 'unofficial');
@@ -89,5 +95,40 @@ describe('matchStopoverProgram', () => {
   test('no match when the carrier does not serve that airport as a hub', () => {
     assert.equal(matchStopoverProgram('NH', 'LHR', overnightTokyo), null);
     assert.equal(matchStopoverProgram('ZZ', 'HND', overnightTokyo), null);
+  });
+});
+
+describe('the 24-hour stopover boundary', () => {
+  const tokyo = (fromIso, toIso) => classifyLayover(new Date(fromIso), new Date(toIso), 'Asia/Tokyo');
+
+  test('a 16h overnight does NOT trigger the free-stopover programme', () => {
+    // The industry defines a stopover as >24h. ANA says so explicitly. Claiming a
+    // free stopover on a 16h connection would be false.
+    const m = matchStopoverProgram('NH', 'NRT', tokyo('2026-10-13T07:25:00Z', '2026-10-14T00:00:00Z'));
+    assert.ok(!m.highlights.some((h) => h.kind === 'free_stopover'),
+      'must not advertise a free stopover below the 24h threshold');
+    const below = m.highlights.find((h) => h.kind === 'below_stopover_threshold');
+    assert.ok(below, 'should explain why, and how to qualify');
+    assert.match(below.text, /connection, not a stopover/i);
+    assert.match(below.text, /no fare premium/i);
+    assert.match(below.text, /Extend past 24h/i);
+  });
+
+  test('past 24h it does trigger', () => {
+    const m = matchStopoverProgram('NH', 'NRT', tokyo('2026-10-13T07:25:00Z', '2026-10-15T00:00:00Z'));
+    const free = m.highlights.find((h) => h.kind === 'free_stopover');
+    assert.ok(free, 'a 40h break is a stopover and should surface the programme');
+    assert.ok(!m.highlights.some((h) => h.kind === 'below_stopover_threshold'));
+  });
+
+  test('exactly 24h is still a connection, not a stopover', () => {
+    const m = matchStopoverProgram('NH', 'NRT', tokyo('2026-10-13T00:00:00Z', '2026-10-14T00:00:00Z'));
+    assert.ok(!m.highlights.some((h) => h.kind === 'free_stopover'), 'the rule is MORE than 24h');
+  });
+
+  test('EVA is only surfaced as unofficial above the threshold too', () => {
+    const short = matchStopoverProgram('BR', 'TPE',
+      classifyLayover(new Date('2026-10-13T10:20:00Z'), new Date('2026-10-14T00:50:00Z'), 'Asia/Taipei'));
+    assert.ok(!short?.highlights.some((h) => h.kind === 'unofficial'));
   });
 });

@@ -98,7 +98,8 @@ Roughly two-thirds of v0.1's complexity, all of it the risky part:
 | **Layover** | Ground time at C between segments, measured in **UTC** |
 | **Long layover** | 6–12h, same local calendar day at C. City visit, no hotel |
 | **Overnight layover** | Requires a night's sleep at C. Formal rule in §2.1 |
-| **Stopover** | ≥ 24h at C. Often a distinct fare product with its own rules and price |
+| **Stopover** | **More than 24h** at C. An industry-defined threshold, not our invention — ANA states it explicitly. Above it, fare rules govern and free-stopover programmes apply |
+| **Connection** | 24h or less at C. Governed by the carrier's *maximum connect time*, not by stopover fare rules. Costs no fare premium — and no stopover programme applies. **This is where the app's overnight sweet spot sits** — see §2.2 |
 | **MaxCT** | Maximum connect time — the airline-side cap that hides these itineraries from normal search. The thing we are working around |
 | **Through-checked** | Bags tagged to the final destination. Usually yes on one ticket, **but not always on long layovers** — §5.4 |
 | **Metro / city group** | TYO = {NRT, HND}, OSA = {KIX, ITM}, SEL = {ICN, GMP}, NYC, LON |
@@ -140,6 +141,35 @@ zero when `overnight` is false — a midnight crossed without meeting the bar ne
 
 This drives hotel cost, stopover-programme eligibility, **and whether the traveller must legally
 enter the country** (§5.5).
+
+### 2.2 The 24-hour boundary
+
+> **Found 2026-09-14 while verifying ANA's programme against their own pages.**
+
+The industry defines a **stopover** as a break of *more than 24 hours*. Anything at or below 24h
+is a **connection**. The two are governed by completely different machinery:
+
+| Break | Governed by | Fare premium | Stopover programmes |
+|---|---|---|---|
+| ≤ 24h — *connection* | The carrier's maximum connect time | None | **Do not apply** |
+| > 24h — *stopover* | Fare rules | Possible | **Apply** |
+
+**The app's overnight sweet spot (8–24h) sits below the threshold — and that is mostly good
+news.** Such a break is sold as an ordinary connection at no fare premium and needs no programme
+at all, provided it fits the carrier's maximum connect time (commonly around 24h on international
+itineraries). It is exactly what §1 describes as invisible-but-sellable.
+
+But it means **advertising a free-stopover programme on a 16-hour layover is simply false.** For
+ANA it would be wrong twice over: the break is not a stopover by their own definition, and the
+programme is oriented toward adding Japanese *domestic* destinations rather than a night in Tokyo
+en route elsewhere.
+
+**FR-33.** Below the threshold, the app must say so and say what it costs — nothing — and offer
+the actionable version: extending past 24h unlocks the programme. `src/engine/stopover.mjs`
+implements this and it is covered by four tests.
+
+This also gives the product a second, sharper pitch: *"one night in Tokyo costs you nothing
+extra; two nights makes it a free ANA stopover."*
 
 ## 3. Users and jobs
 

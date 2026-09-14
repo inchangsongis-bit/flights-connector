@@ -1,9 +1,9 @@
 {
   "$schema": "./stopover-programs.schema.json",
-  "checked_at": "2026-09-05",
+  "checked_at": "2026-09-14",
   "confidence_note": "Most rows are sourced from travel-industry secondary sources, not carrier pages. Programme terms change frequently and vary by fare, cabin and point of sale. Every row carries verify_before_display: true. Treat as a shortlist of what to check, never as a guarantee to the user (requirements LC-4, FR-32).",
   "mechanisms": {
-    "fare_stopover": "The fare permits a break in journey at the hub, free or for a fee, booked as a multi-city itinerary. This is the mechanism the app constructs against.",
+    "fare_stopover": "The fare permits a break in journey at the hub. CRITICAL: the industry defines a stopover as a stay of MORE THAN 24 HOURS at a transfer point (ANA states this explicitly). A break under 24h is a CONNECTION, not a stopover - it is governed by the carrier's maximum connect time rather than by stopover fare rules, and free-stopover programmes do not apply to it. See the 24-hour boundary note below.",
     "carrier_provided_hotel": "STPC (Stopover Paid by Carrier). The airline supplies a hotel because the connection is long. Usually triggered by the schedule, NOT chosen by the passenger - see requires_no_shorter_connection.",
     "paid_stopover_package": "A discounted hotel/tour bundle sold as an add-on.",
     "transit_tour": "A free city tour for qualifying transit passengers."
@@ -13,60 +13,105 @@
       "carrier_iata": "NH",
       "carrier_name": "All Nippon Airways",
       "alliance": "Star Alliance",
-      "hub_airports": ["HND", "NRT"],
+      "hub_airports": [
+        "HND",
+        "NRT"
+      ],
       "hub_metro": "TYO",
       "hub_country": "JP",
       "relevant_to_motivating_case": true,
       "fare_stopover": {
         "available": true,
         "free_per_direction": 1,
-        "additional_fee": { "amount": 130, "currency": "USD" },
+        "additional_fee": {
+          "amount": 130,
+          "currency": "USD"
+        },
         "max_days": null,
-        "eligible_destinations_note": "40+ Japanese destinations; up to four Japanese cities on a round trip",
+        "eligible_destinations_note": "50+ Japanese domestic airports",
         "booking_method": "multi_city",
-        "notes": "Marketed as the Multiple Stopover Service. The strongest match for the Seattle-Tokyo-Seoul case."
+        "notes": "Multiple Stopover Service. ANA defines a stopover as a stay at a transfer point of MORE THAN 24 HOURS. Two stopovers per direction, the first free and the second subject to fees plus consumption tax. Emphasis is on adding Japanese DOMESTIC destinations (50+ airports), so it fits 'Seattle to Seoul with two nights in Tokyo' far better than a single overnight, and fits 'Seattle to Tokyo plus Osaka' best of all.",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply.",
+        "stopovers_per_direction": 2
       },
-      "carrier_provided_hotel": { "available": "unknown" },
-      "paid_stopover_package": { "available": false },
-      "transit_tour": { "available": "unknown" },
-      "confidence": "medium",
+      "carrier_provided_hotel": {
+        "available": "unknown"
+      },
+      "paid_stopover_package": {
+        "available": false
+      },
+      "transit_tour": {
+        "available": "unknown"
+      },
+      "confidence": "high",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://www.getstopover.com/blog/best-stopover-programs-2026", "checked_at": "2026-09-05" },
-        { "url": "https://www.passrider.com/stopovers/", "checked_at": "2026-09-05" }
+        {
+          "url": "https://www.ana.co.jp/en/my/plan-book/promotions/multiple-stopovers-transfers/",
+          "checked_at": "2026-09-14",
+          "note": "ANA official promotions page"
+        },
+        {
+          "url": "https://www.getstopover.com/blog/best-stopover-programs-2026",
+          "checked_at": "2026-09-05"
+        },
+        {
+          "url": "https://www.passrider.com/stopovers/",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "JL",
       "carrier_name": "Japan Airlines",
       "alliance": "oneworld",
-      "hub_airports": ["HND", "NRT"],
+      "hub_airports": [
+        "HND",
+        "NRT"
+      ],
       "hub_metro": "TYO",
       "hub_country": "JP",
       "relevant_to_motivating_case": true,
       "fare_stopover": {
         "available": true,
         "free_per_direction": 1,
-        "additional_fee": { "amount": 130, "currency": "USD" },
+        "additional_fee": {
+          "amount": 130,
+          "currency": "USD"
+        },
         "max_days": null,
         "eligible_destinations_note": "Tokyo, Osaka, Sapporo, Okinawa plus ~40 further destinations",
         "booking_method": "multi_city",
-        "notes": "Mirrors ANA's structure closely."
+        "notes": "Mirrors ANA's structure closely. The 24-hour stopover definition is an industry norm and is assumed to apply, but was NOT verified against JAL's own pages - lower confidence than the ANA row.",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply."
       },
-      "carrier_provided_hotel": { "available": "unknown" },
-      "paid_stopover_package": { "available": false },
-      "transit_tour": { "available": "unknown" },
+      "carrier_provided_hotel": {
+        "available": "unknown"
+      },
+      "paid_stopover_package": {
+        "available": false
+      },
+      "transit_tour": {
+        "available": "unknown"
+      },
       "confidence": "medium",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://www.getstopover.com/blog/best-stopover-programs-2026", "checked_at": "2026-09-05" }
+        {
+          "url": "https://www.getstopover.com/blog/best-stopover-programs-2026",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "KE",
       "carrier_name": "Korean Air",
       "alliance": "SkyTeam",
-      "hub_airports": ["ICN"],
+      "hub_airports": [
+        "ICN"
+      ],
       "hub_metro": "SEL",
       "hub_country": "KR",
       "relevant_to_motivating_case": true,
@@ -85,7 +130,9 @@
         "cabin_rules": "Select routes; typically first/business. Economy window quoted as 9-24h, relaxed to 6-24h in premium cabins.",
         "notes": "Requires an email request at least one day before travel to confirm eligibility - not automatic."
       },
-      "paid_stopover_package": { "available": false },
+      "paid_stopover_package": {
+        "available": false
+      },
       "transit_tour": {
         "available": true,
         "notes": "Free Incheon transit tours on longer layovers; AREX to central Seoul is straightforward."
@@ -93,25 +140,40 @@
       "confidence": "low",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://us.trip.com/guide/info/korean-air-layover-hotel.html", "checked_at": "2026-09-05" },
-        { "url": "https://onemileatatime.com/korean-air-skypass-eliminates-free-stopovers/", "checked_at": "2026-09-05" }
+        {
+          "url": "https://us.trip.com/guide/info/korean-air-layover-hotel.html",
+          "checked_at": "2026-09-05"
+        },
+        {
+          "url": "https://onemileatatime.com/korean-air-skypass-eliminates-free-stopovers/",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "OZ",
       "carrier_name": "Asiana Airlines",
       "alliance": "Star Alliance",
-      "hub_airports": ["ICN"],
+      "hub_airports": [
+        "ICN"
+      ],
       "hub_metro": "SEL",
       "hub_country": "KR",
       "relevant_to_motivating_case": true,
-      "fare_stopover": { "available": "unknown", "booking_method": "multi_city" },
+      "fare_stopover": {
+        "available": "unknown",
+        "booking_method": "multi_city"
+      },
       "carrier_provided_hotel": {
         "available": true,
         "max_layover_hours": 24,
         "requires_no_shorter_connection": "unknown",
         "cabin_rules": "Certain itineraries from the United States and Oceania",
-        "includes": ["hotel", "two meals", "bus transfer"],
+        "includes": [
+          "hotel",
+          "two meals",
+          "bus transfer"
+        ],
         "notes": "Directly relevant to a US origin. Verify the itinerary qualifies."
       },
       "paid_stopover_package": {
@@ -128,15 +190,23 @@
       "confidence": "low",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://flyasiana.com/C/DE/EN/event/detail/CM202102100001331745", "checked_at": "2026-09-05" },
-        { "url": "https://www.airtraveler.club/blog/airline-stopover-programs/", "checked_at": "2026-09-05" }
+        {
+          "url": "https://flyasiana.com/C/DE/EN/event/detail/CM202102100001331745",
+          "checked_at": "2026-09-05"
+        },
+        {
+          "url": "https://www.airtraveler.club/blog/airline-stopover-programs/",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "CX",
       "carrier_name": "Cathay Pacific",
       "alliance": "oneworld",
-      "hub_airports": ["HKG"],
+      "hub_airports": [
+        "HKG"
+      ],
       "hub_metro": "HKG",
       "hub_country": "HK",
       "relevant_to_motivating_case": true,
@@ -146,75 +216,120 @@
         "max_days": 7,
         "eligible_destinations_note": "Hong Kong, on eligible routes from North America, Europe, Australia and New Zealand",
         "booking_method": "multi_city",
-        "notes": "Some sources cite stopovers permitted up to 90 days under fare rules; 7 days is the commonly quoted free window from North America."
+        "notes": "Some sources cite stopovers permitted up to 90 days under fare rules; 7 days is the commonly quoted free window from North America.",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply."
       },
-      "carrier_provided_hotel": { "available": "unknown" },
-      "paid_stopover_package": { "available": "unknown" },
-      "transit_tour": { "available": "unknown" },
+      "carrier_provided_hotel": {
+        "available": "unknown"
+      },
+      "paid_stopover_package": {
+        "available": "unknown"
+      },
+      "transit_tour": {
+        "available": "unknown"
+      },
       "confidence": "medium",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://www.retirementtravelers.com/travel-tips/the-airlines-that-allow-free-stopovers", "checked_at": "2026-09-05" }
+        {
+          "url": "https://www.retirementtravelers.com/travel-tips/the-airlines-that-allow-free-stopovers",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "CI",
       "carrier_name": "China Airlines",
       "alliance": "SkyTeam",
-      "hub_airports": ["TPE"],
+      "hub_airports": [
+        "TPE"
+      ],
       "hub_metro": "TPE",
       "hub_country": "TW",
       "relevant_to_motivating_case": true,
       "fare_stopover": {
         "available": true,
         "free_per_direction": 1,
-        "additional_fee": { "amount": 50, "currency": "EUR", "note": "applies to some booking classes only" },
+        "additional_fee": {
+          "amount": 50,
+          "currency": "EUR",
+          "note": "applies to some booking classes only"
+        },
         "max_days": 90,
-        "booking_method": "multi_city"
+        "booking_method": "multi_city",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply."
       },
-      "carrier_provided_hotel": { "available": "unknown" },
-      "paid_stopover_package": { "available": "unknown" },
-      "transit_tour": { "available": "unknown" },
+      "carrier_provided_hotel": {
+        "available": "unknown"
+      },
+      "paid_stopover_package": {
+        "available": "unknown"
+      },
+      "transit_tour": {
+        "available": "unknown"
+      },
       "confidence": "low",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://www.retirementtravelers.com/travel-tips/the-airlines-that-allow-free-stopovers", "checked_at": "2026-09-05" }
+        {
+          "url": "https://www.retirementtravelers.com/travel-tips/the-airlines-that-allow-free-stopovers",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "BR",
       "carrier_name": "EVA Air",
       "alliance": "Star Alliance",
-      "hub_airports": ["TPE"],
+      "hub_airports": [
+        "TPE"
+      ],
       "hub_metro": "TPE",
       "hub_country": "TW",
       "relevant_to_motivating_case": true,
       "fare_stopover": {
         "available": "unofficial",
         "booking_method": "multi_city",
-        "notes": "No advertised stopover programme. However, multi-city pricing on EVA's own site is frequently at or below the equivalent connecting fare, so the stopover is effectively free in practice. Worth surfacing precisely because no listicle covers it - but state clearly that there is no published programme behind it."
+        "notes": "No advertised stopover programme. However, multi-city pricing on EVA's own site is frequently at or below the equivalent connecting fare, so the stopover is effectively free in practice. Worth surfacing precisely because no listicle covers it - but state clearly that there is no published programme behind it.",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply."
       },
-      "carrier_provided_hotel": { "available": "unknown" },
-      "paid_stopover_package": { "available": false },
-      "transit_tour": { "available": "unknown" },
+      "carrier_provided_hotel": {
+        "available": "unknown"
+      },
+      "paid_stopover_package": {
+        "available": false
+      },
+      "transit_tour": {
+        "available": "unknown"
+      },
       "confidence": "low",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://under30experiences.com/blog/how-to-book-a-free-airline-stopover", "checked_at": "2026-09-05" }
+        {
+          "url": "https://under30experiences.com/blog/how-to-book-a-free-airline-stopover",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "SQ",
       "carrier_name": "Singapore Airlines",
       "alliance": "Star Alliance",
-      "hub_airports": ["SIN"],
+      "hub_airports": [
+        "SIN"
+      ],
       "hub_metro": "SIN",
       "hub_country": "SG",
       "relevant_to_motivating_case": false,
       "fare_stopover": {
         "available": true,
         "booking_method": "multi_city",
-        "notes": "Supported via multi-city booking; the branded product is a paid package rather than a free fare stopover."
+        "notes": "Supported via multi-city booking; the branded product is a paid package rather than a free fare stopover.",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply."
       },
       "carrier_provided_hotel": {
         "available": true,
@@ -222,7 +337,10 @@
         "requires_no_shorter_connection": "unknown",
         "notes": "Programme relaunched 2025; includes hotel nights for premium cabins plus Changi shopping vouchers."
       },
-      "paid_stopover_package": { "available": true, "program_name": "Singapore Stopover" },
+      "paid_stopover_package": {
+        "available": true,
+        "program_name": "Singapore Stopover"
+      },
       "transit_tour": {
         "available": true,
         "min_layover_hours": 5.5,
@@ -231,18 +349,28 @@
       "confidence": "medium",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://www.getstopover.com/blog/best-stopover-programs-2026", "checked_at": "2026-09-05" }
+        {
+          "url": "https://www.getstopover.com/blog/best-stopover-programs-2026",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "TK",
       "carrier_name": "Turkish Airlines",
       "alliance": "Star Alliance",
-      "hub_airports": ["IST"],
+      "hub_airports": [
+        "IST"
+      ],
       "hub_metro": "IST",
       "hub_country": "TR",
       "relevant_to_motivating_case": false,
-      "fare_stopover": { "available": true, "booking_method": "multi_city" },
+      "fare_stopover": {
+        "available": true,
+        "booking_method": "multi_city",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply."
+      },
       "carrier_provided_hotel": {
         "available": true,
         "min_layover_hours": 20,
@@ -250,7 +378,9 @@
         "cabin_rules": "One night in a four-star hotel for Economy; up to three nights in a five-star or boutique hotel for Business departing from the United States",
         "notes": "One of the most generous published thresholds. Verify point-of-sale conditions."
       },
-      "paid_stopover_package": { "available": false },
+      "paid_stopover_package": {
+        "available": false
+      },
       "transit_tour": {
         "available": true,
         "program_name": "Touristanbul",
@@ -261,43 +391,71 @@
       "confidence": "medium",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://www.getstopover.com/blog/free-stopover-hotel-programs-2026", "checked_at": "2026-09-05" }
+        {
+          "url": "https://www.getstopover.com/blog/free-stopover-hotel-programs-2026",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "EK",
       "carrier_name": "Emirates",
       "alliance": "none",
-      "hub_airports": ["DXB"],
+      "hub_airports": [
+        "DXB"
+      ],
       "hub_metro": "DXB",
       "hub_country": "AE",
       "relevant_to_motivating_case": false,
-      "fare_stopover": { "available": true, "booking_method": "multi_city" },
+      "fare_stopover": {
+        "available": true,
+        "booking_method": "multi_city",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply."
+      },
       "carrier_provided_hotel": {
         "available": true,
         "program_name": "Dubai Connect",
         "requires_no_shorter_connection": true,
         "cabin_rules": "Eligibility thresholds vary by cabin",
-        "includes": ["hotel", "meals", "transfers"],
+        "includes": [
+          "hotel",
+          "meals",
+          "transfers"
+        ],
         "notes": "IMPORTANT: applies only where no shorter connection is available. A deliberately chosen long layover will normally DISQUALIFY the passenger. This is the clearest documented example of the trap described in the README."
       },
-      "paid_stopover_package": { "available": "unknown" },
-      "transit_tour": { "available": "unknown" },
+      "paid_stopover_package": {
+        "available": "unknown"
+      },
+      "transit_tour": {
+        "available": "unknown"
+      },
       "confidence": "medium",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://www.getstopover.com/blog/free-stopover-hotel-programs-2026", "checked_at": "2026-09-05" }
+        {
+          "url": "https://www.getstopover.com/blog/free-stopover-hotel-programs-2026",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "QR",
       "carrier_name": "Qatar Airways",
       "alliance": "oneworld",
-      "hub_airports": ["DOH"],
+      "hub_airports": [
+        "DOH"
+      ],
       "hub_metro": "DOH",
       "hub_country": "QA",
       "relevant_to_motivating_case": false,
-      "fare_stopover": { "available": true, "booking_method": "multi_city" },
+      "fare_stopover": {
+        "available": true,
+        "booking_method": "multi_city",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply."
+      },
       "carrier_provided_hotel": {
         "available": true,
         "program_name": "STPC",
@@ -307,7 +465,11 @@
       "paid_stopover_package": {
         "available": true,
         "program_name": "Qatar Stopover / Discover Qatar",
-        "price_from": { "amount": 14, "currency": "USD", "per": "night" },
+        "price_from": {
+          "amount": 14,
+          "currency": "USD",
+          "per": "night"
+        },
         "min_layover_hours": 12,
         "max_layover_hours": 96,
         "max_nights_per_direction": 4,
@@ -315,96 +477,166 @@
         "eligibility": "Confirmed Qatar Airways, codeshare or oneworld ticket holders transiting Doha",
         "notes": "Bookable up to 12 months ahead; cancellable up to 72 hours before arrival."
       },
-      "transit_tour": { "available": "unknown" },
+      "transit_tour": {
+        "available": "unknown"
+      },
       "confidence": "medium",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://blog.wego.com/qatar-airways-stopover-program/", "checked_at": "2026-09-05" },
-        { "url": "https://www.qatarairways.com/tradeportal/en-us/Qatar-stopover.html", "checked_at": "2026-09-05" }
+        {
+          "url": "https://blog.wego.com/qatar-airways-stopover-program/",
+          "checked_at": "2026-09-05"
+        },
+        {
+          "url": "https://www.qatarairways.com/tradeportal/en-us/Qatar-stopover.html",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "EY",
       "carrier_name": "Etihad Airways",
       "alliance": "none",
-      "hub_airports": ["AUH"],
+      "hub_airports": [
+        "AUH"
+      ],
       "hub_metro": "AUH",
       "hub_country": "AE",
       "relevant_to_motivating_case": false,
-      "fare_stopover": { "available": true, "booking_method": "multi_city" },
+      "fare_stopover": {
+        "available": true,
+        "booking_method": "multi_city",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply."
+      },
       "carrier_provided_hotel": {
         "available": true,
         "nights": "1-2",
         "requires_no_shorter_connection": "unknown",
         "notes": "Free nights in a 3-star hotel via voucher issued after booking. NOT guaranteed, and the passenger must make the reservation themselves - present as conditional, never as included."
       },
-      "paid_stopover_package": { "available": "unknown" },
-      "transit_tour": { "available": "unknown" },
+      "paid_stopover_package": {
+        "available": "unknown"
+      },
+      "transit_tour": {
+        "available": "unknown"
+      },
       "confidence": "low",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://upgradedpoints.com/travel/airlines/airline-stopover-programs/", "checked_at": "2026-09-05" }
+        {
+          "url": "https://upgradedpoints.com/travel/airlines/airline-stopover-programs/",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "ET",
       "carrier_name": "Ethiopian Airlines",
       "alliance": "Star Alliance",
-      "hub_airports": ["ADD"],
+      "hub_airports": [
+        "ADD"
+      ],
       "hub_metro": "ADD",
       "hub_country": "ET",
       "relevant_to_motivating_case": false,
-      "fare_stopover": { "available": "unknown", "booking_method": "multi_city" },
-      "carrier_provided_hotel": { "available": true, "requires_no_shorter_connection": "unknown" },
-      "paid_stopover_package": { "available": "unknown" },
-      "transit_tour": { "available": "unknown" },
+      "fare_stopover": {
+        "available": "unknown",
+        "booking_method": "multi_city"
+      },
+      "carrier_provided_hotel": {
+        "available": true,
+        "requires_no_shorter_connection": "unknown"
+      },
+      "paid_stopover_package": {
+        "available": "unknown"
+      },
+      "transit_tour": {
+        "available": "unknown"
+      },
       "confidence": "low",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://www.getstopover.com/blog/free-stopover-hotel-programs-2026", "checked_at": "2026-09-05" }
+        {
+          "url": "https://www.getstopover.com/blog/free-stopover-hotel-programs-2026",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "SV",
       "carrier_name": "Saudia",
       "alliance": "SkyTeam",
-      "hub_airports": ["JED", "RUH"],
+      "hub_airports": [
+        "JED",
+        "RUH"
+      ],
       "hub_metro": "JED",
       "hub_country": "SA",
       "relevant_to_motivating_case": false,
-      "fare_stopover": { "available": "unknown", "booking_method": "multi_city" },
-      "carrier_provided_hotel": { "available": true, "requires_no_shorter_connection": "unknown" },
-      "paid_stopover_package": { "available": "unknown" },
-      "transit_tour": { "available": "unknown" },
+      "fare_stopover": {
+        "available": "unknown",
+        "booking_method": "multi_city"
+      },
+      "carrier_provided_hotel": {
+        "available": true,
+        "requires_no_shorter_connection": "unknown"
+      },
+      "paid_stopover_package": {
+        "available": "unknown"
+      },
+      "transit_tour": {
+        "available": "unknown"
+      },
       "confidence": "low",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://www.getstopover.com/blog/free-stopover-hotel-programs-2026", "checked_at": "2026-09-05" }
+        {
+          "url": "https://www.getstopover.com/blog/free-stopover-hotel-programs-2026",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "GF",
       "carrier_name": "Gulf Air",
       "alliance": "none",
-      "hub_airports": ["BAH"],
+      "hub_airports": [
+        "BAH"
+      ],
       "hub_metro": "BAH",
       "hub_country": "BH",
       "relevant_to_motivating_case": false,
-      "fare_stopover": { "available": "unknown", "booking_method": "multi_city" },
-      "carrier_provided_hotel": { "available": true, "requires_no_shorter_connection": "unknown" },
-      "paid_stopover_package": { "available": "unknown" },
-      "transit_tour": { "available": "unknown" },
+      "fare_stopover": {
+        "available": "unknown",
+        "booking_method": "multi_city"
+      },
+      "carrier_provided_hotel": {
+        "available": true,
+        "requires_no_shorter_connection": "unknown"
+      },
+      "paid_stopover_package": {
+        "available": "unknown"
+      },
+      "transit_tour": {
+        "available": "unknown"
+      },
       "confidence": "low",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://www.getstopover.com/blog/free-stopover-hotel-programs-2026", "checked_at": "2026-09-05" }
+        {
+          "url": "https://www.getstopover.com/blog/free-stopover-hotel-programs-2026",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "FI",
       "carrier_name": "Icelandair",
       "alliance": "none",
-      "hub_airports": ["KEF"],
+      "hub_airports": [
+        "KEF"
+      ],
       "hub_metro": "REK",
       "hub_country": "IS",
       "relevant_to_motivating_case": false,
@@ -416,22 +648,36 @@
         "max_days_premium": 21,
         "eligible_destinations_note": "Transatlantic itineraries via Iceland",
         "booking_method": "booking_engine",
-        "notes": "The archetypal stopover programme. No hotel included, but the booking engine supports stopover routing directly - unusually, no multi-city workaround needed. Up to 21 days on Saga Premium Flex."
+        "notes": "The archetypal stopover programme. No hotel included, but the booking engine supports stopover routing directly - unusually, no multi-city workaround needed. Up to 21 days on Saga Premium Flex.",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply."
       },
-      "carrier_provided_hotel": { "available": false },
-      "paid_stopover_package": { "available": "unknown" },
-      "transit_tour": { "available": false },
+      "carrier_provided_hotel": {
+        "available": false
+      },
+      "paid_stopover_package": {
+        "available": "unknown"
+      },
+      "transit_tour": {
+        "available": false
+      },
       "confidence": "high",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://www.passrider.com/stopovers/", "checked_at": "2026-09-05" }
+        {
+          "url": "https://www.passrider.com/stopovers/",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "TP",
       "carrier_name": "TAP Air Portugal",
       "alliance": "Star Alliance",
-      "hub_airports": ["LIS", "OPO"],
+      "hub_airports": [
+        "LIS",
+        "OPO"
+      ],
       "hub_metro": "LIS",
       "hub_country": "PT",
       "relevant_to_motivating_case": false,
@@ -441,22 +687,35 @@
         "max_days": 10,
         "eligible_destinations_note": "Lisbon or Porto",
         "booking_method": "booking_engine",
-        "notes": "Portugal Stopover. No increase in ticket price. Bookable at purchase or added later via Manage Booking. Partner discounts on hotels and experiences rather than a free hotel."
+        "notes": "Portugal Stopover. No increase in ticket price. Bookable at purchase or added later via Manage Booking. Partner discounts on hotels and experiences rather than a free hotel.",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply."
       },
-      "carrier_provided_hotel": { "available": false },
-      "paid_stopover_package": { "available": false },
-      "transit_tour": { "available": false },
+      "carrier_provided_hotel": {
+        "available": false
+      },
+      "paid_stopover_package": {
+        "available": false
+      },
+      "transit_tour": {
+        "available": false
+      },
       "confidence": "high",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://www.passrider.com/stopovers/", "checked_at": "2026-09-05" }
+        {
+          "url": "https://www.passrider.com/stopovers/",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "AY",
       "carrier_name": "Finnair",
       "alliance": "oneworld",
-      "hub_airports": ["HEL"],
+      "hub_airports": [
+        "HEL"
+      ],
       "hub_metro": "HEL",
       "hub_country": "FI",
       "relevant_to_motivating_case": false,
@@ -466,22 +725,35 @@
         "max_days": 5,
         "eligible_destinations_note": "Helsinki",
         "booking_method": "multi_city",
-        "notes": "Book via the multi-city function on Finnair's own site. Commonly cited for summer Europe itineraries; confirm year-round applicability."
+        "notes": "Book via the multi-city function on Finnair's own site. Commonly cited for summer Europe itineraries; confirm year-round applicability.",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply."
       },
-      "carrier_provided_hotel": { "available": false },
-      "paid_stopover_package": { "available": "unknown" },
-      "transit_tour": { "available": "unknown" },
+      "carrier_provided_hotel": {
+        "available": false
+      },
+      "paid_stopover_package": {
+        "available": "unknown"
+      },
+      "transit_tour": {
+        "available": "unknown"
+      },
       "confidence": "medium",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://upgradedpoints.com/travel/airlines/airline-stopover-programs/", "checked_at": "2026-09-05" }
+        {
+          "url": "https://upgradedpoints.com/travel/airlines/airline-stopover-programs/",
+          "checked_at": "2026-09-05"
+        }
       ]
     },
     {
       "carrier_iata": "CM",
       "carrier_name": "Copa Airlines",
       "alliance": "Star Alliance",
-      "hub_airports": ["PTY"],
+      "hub_airports": [
+        "PTY"
+      ],
       "hub_metro": "PTY",
       "hub_country": "PA",
       "relevant_to_motivating_case": false,
@@ -489,16 +761,32 @@
         "available": true,
         "eligible_destinations_note": "Panama City",
         "booking_method": "multi_city",
-        "notes": "Panama Stopover. Details unconfirmed - free-day allowance and fees need verification against Copa's own pages."
+        "notes": "Panama Stopover. Details unconfirmed - free-day allowance and fees need verification against Copa's own pages.",
+        "min_hours": 24,
+        "min_hours_note": "Below 24h the break is a connection, not a stopover; this programme does not apply."
       },
-      "carrier_provided_hotel": { "available": "unknown" },
-      "paid_stopover_package": { "available": "unknown" },
-      "transit_tour": { "available": "unknown" },
+      "carrier_provided_hotel": {
+        "available": "unknown"
+      },
+      "paid_stopover_package": {
+        "available": "unknown"
+      },
+      "transit_tour": {
+        "available": "unknown"
+      },
       "confidence": "low",
       "verify_before_display": true,
       "sources": [
-        { "url": "https://www.passrider.com/stopovers/", "checked_at": "2026-09-05" }
+        {
+          "url": "https://www.passrider.com/stopovers/",
+          "checked_at": "2026-09-05"
+        }
       ]
     }
-  ]
+  ],
+  "twenty_four_hour_boundary": {
+    "why_it_matters": "The app's overnight sweet spot (8-24h) sits BELOW the stopover threshold. That is usually good news, not bad: an 8-24h break is sold as an ordinary connection at no fare premium, needing no programme at all, provided it fits the carrier's maximum connect time (commonly around 24h on international itineraries). Above 24h it becomes a stopover, where fare rules govern and the free-stopover programmes below actually apply.",
+    "consequence": "Never advertise a free-stopover programme on a sub-24h layover. For ANA that would be wrong twice over: the break is not a stopover by their definition, and the programme is oriented toward adding Japanese DOMESTIC destinations rather than a night in Tokyo en route elsewhere.",
+    "checked_at": "2026-09-14"
+  }
 }
