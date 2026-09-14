@@ -1,0 +1,560 @@
+<title>Layover Board</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#E7E8E3; --surface:#F1F2ED; --surface-2:#DCDED6;
+  --ink:#1B1E24; --ink-2:#4A5059; --ink-3:#767D86;
+  --rule:#C6C9C0; --rule-strong:#A8ACA2;
+  --amber:#8A5B10; --amber-bg:#F0D9AE; --amber-line:#C08A28;
+  --cyan:#1F6B7C; --cyan-bg:#CFE3E7;
+  --vermilion:#9B3A26; --vermilion-bg:#F2D6CE;
+  --shadow:0 1px 0 rgba(27,30,36,.06);
+  --display:"Barlow Condensed",ui-sans-serif,system-ui,sans-serif;
+  --body:"Barlow",ui-sans-serif,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#121520; --surface:#191D2A; --surface-2:#222736;
+    --ink:#E8E9EC; --ink-2:#A2A8B6; --ink-3:#6E7585;
+    --rule:#2A2F3E; --rule-strong:#3B4254;
+    --amber:#E3A44A; --amber-bg:#3A2C14; --amber-line:#A8752A;
+    --cyan:#6FB8C9; --cyan-bg:#152A31;
+    --vermilion:#E08268; --vermilion-bg:#331A14;
+    --shadow:0 1px 0 rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#121520; --surface:#191D2A; --surface-2:#222736;
+  --ink:#E8E9EC; --ink-2:#A2A8B6; --ink-3:#6E7585;
+  --rule:#2A2F3E; --rule-strong:#3B4254;
+  --amber:#E3A44A; --amber-bg:#3A2C14; --amber-line:#A8752A;
+  --cyan:#6FB8C9; --cyan-bg:#152A31;
+  --vermilion:#E08268; --vermilion-bg:#331A14;
+  --shadow:0 1px 0 rgba(0,0,0,.3);
+}
+
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--body);
+  font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:28px 64px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:.01em}
+p{margin:0}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--amber-line);outline-offset:2px;border-radius:2px}
+
+/* ── masthead ─────────────────────────────────────── */
+.mast{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;
+  gap:16px;padding-bottom:14px;border-bottom:2px solid var(--ink)}
+.mast h1{font-size:clamp(30px,6vw,44px);font-weight:700;text-transform:uppercase;
+  letter-spacing:.04em;line-height:.95}
+.mast .sub{font-family:var(--mono);font-size:11px;color:var(--ink-3);
+  text-transform:uppercase;letter-spacing:.11em}
+.premise{margin-top:14px;max-width:62ch;color:var(--ink-2);font-size:15.5px}
+.premise b{color:var(--ink);font-weight:600}
+
+/* ── route control ────────────────────────────────── */
+.control{margin-top:24px;background:var(--surface);border:1px solid var(--rule);
+  box-shadow:var(--shadow);padding:16px;display:grid;gap:14px;
+  grid-template-columns:1fr 1fr auto;align-items:end}
+@media (max-width:640px){.control{grid-template-columns:1fr;padding:14px}}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3)}
+.field input{width:100%;background:var(--ground);border:1px solid var(--rule-strong);
+  padding:9px 11px;font-family:var(--mono);font-size:15px;font-weight:500;
+  letter-spacing:.02em;border-radius:0}
+.field input::placeholder{color:var(--ink-3);font-weight:400}
+.toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2);
+  white-space:nowrap;padding-bottom:9px}
+.toggle input{width:16px;height:16px;accent-color:var(--amber-line)}
+
+/* ── board ────────────────────────────────────────── */
+.board-head{display:flex;align-items:baseline;justify-content:space-between;
+  gap:12px;margin:30px 0 0;flex-wrap:wrap}
+.board-head h2{font-size:19px;font-weight:600;text-transform:uppercase;letter-spacing:.07em}
+.count{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);letter-spacing:.06em}
+
+.board{margin-top:10px;border-top:1px solid var(--rule-strong)}
+.row{display:grid;grid-template-columns:62px 1fr 68px 110px;gap:14px;align-items:center;
+  width:100%;text-align:left;padding:13px 10px;background:none;border:0;
+  border-bottom:1px solid var(--rule);cursor:pointer;transition:background .12s}
+.row:hover{background:var(--surface)}
+.row[aria-expanded="true"]{background:var(--surface);border-bottom-color:var(--rule-strong)}
+.row .code{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--amber);
+  letter-spacing:.03em;line-height:1}
+.row .place{min-width:0}
+.row .city{font-family:var(--display);font-size:18px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.03em;line-height:1.1;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .country{font-size:12.5px;color:var(--ink-3);line-height:1.3}
+.row .detour{font-family:var(--mono);font-size:13px;color:var(--ink-2);
+  font-variant-numeric:tabular-nums;text-align:right}
+.row .tags{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
+@media (max-width:640px){
+  .row{grid-template-columns:54px 1fr auto;gap:10px;padding:12px 6px}
+  .row .detour{display:none}
+  .row .tags{grid-column:2/4;justify-content:flex-start;margin-top:2px}
+}
+.chip{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 6px;white-space:nowrap;font-weight:500;border:1px solid transparent}
+.chip.same{background:var(--cyan-bg);color:var(--cyan);border-color:var(--cyan)}
+.chip.alliance{background:var(--surface-2);color:var(--ink-2);border-color:var(--rule-strong)}
+.chip.unknown{background:transparent;color:var(--ink-3);border-color:var(--rule-strong);
+  border-style:dashed}
+.chip.prog{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-line)}
+
+/* ── detail ───────────────────────────────────────── */
+.detail{border-bottom:1px solid var(--rule-strong);background:var(--surface);
+  padding:4px 10px 22px;display:grid;gap:18px}
+@media (max-width:640px){.detail{padding:4px 6px 20px}}
+.dial{display:grid;gap:9px}
+.dial-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.dial-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3)}
+.dial-val{font-family:var(--mono);font-size:26px;font-weight:600;
+  font-variant-numeric:tabular-nums;line-height:1}
+.verdict{font-family:var(--display);font-size:17px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.05em}
+.verdict.conn{color:var(--ink-2)}
+.verdict.stop{color:var(--amber)}
+.track{position:relative;padding-top:6px}
+.track input[type=range]{width:100%;margin:0;accent-color:var(--amber-line);display:block}
+.ticks{position:relative;height:22px;margin-top:2px;font-family:var(--mono);font-size:10px;
+  color:var(--ink-3);font-variant-numeric:tabular-nums}
+.tick{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.tick.boundary{color:var(--amber);font-weight:600}
+.boundary-line{position:absolute;top:0;height:30px;width:2px;background:var(--amber-line);
+  opacity:.9;pointer-events:none;z-index:1}
+.boundary-line::after{content:"";position:absolute;left:-3px;top:0;width:8px;height:2px;
+  background:var(--amber-line)}
+.readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+  gap:1px;background:var(--rule);border:1px solid var(--rule)}
+.cell{background:var(--surface);padding:10px 12px}
+.cell dt{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);margin-bottom:3px}
+.cell dd{margin:0;font-family:var(--mono);font-size:16px;font-weight:500;
+  font-variant-numeric:tabular-nums}
+.cell dd small{font-family:var(--body);font-size:12px;color:var(--ink-3);font-weight:400}
+
+.notes{display:grid;gap:8px}
+.note{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;
+  padding:10px 12px;font-size:14px;line-height:1.45;border-left:3px solid var(--rule-strong);
+  background:var(--ground)}
+.note .mk{font-family:var(--mono);font-size:12px;font-weight:600;line-height:1.5}
+.note.good{border-left-color:var(--amber-line)}
+.note.good .mk{color:var(--amber)}
+.note.warn{border-left-color:var(--vermilion);background:var(--vermilion-bg)}
+.note.warn .mk{color:var(--vermilion)}
+.note.info .mk{color:var(--ink-3)}
+.note b{font-weight:600}
+.note a{color:inherit;text-decoration:underline;text-underline-offset:2px;
+  text-decoration-color:var(--rule-strong)}
+.carriers{font-family:var(--mono);font-size:12.5px;color:var(--ink-2);letter-spacing:.04em}
+.carriers span{color:var(--ink-3)}
+
+.empty{padding:34px 10px;color:var(--ink-2);font-size:15px;max-width:58ch}
+.empty h3{font-family:var(--display);font-size:20px;text-transform:uppercase;
+  letter-spacing:.05em;margin-bottom:6px}
+
+/* ── colophon ─────────────────────────────────────── */
+.colophon{margin-top:44px;padding-top:18px;border-top:2px solid var(--ink);
+  display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+  font-size:13px;line-height:1.5;color:var(--ink-2)}
+.colophon h3{font-family:var(--mono);font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3);margin-bottom:5px;font-weight:600}
+.colophon b{color:var(--ink);font-weight:600}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <div>
+      <h1>Layover Board</h1>
+    </div>
+    <div class="sub" id="meta">loading…</div>
+  </header>
+
+  <p class="premise">Every flight search sorts by <b>shortest</b>, so a sixteen-hour layover in Tokyo
+  ranks below every nonstop and vanishes. This one sorts the other way. Pick two cities and see which
+  places in between are actually <b>flyable on one ticket</b> — and what a night there would cost you.</p>
+
+  <div class="control">
+    <div class="field">
+      <label for="from">From</label>
+      <input id="from" list="airports" value="SEA" autocomplete="off" spellcheck="false" placeholder="SEA">
+    </div>
+    <div class="field">
+      <label for="to">To</label>
+      <input id="to" list="airports" value="ICN" autocomplete="off" spellcheck="false" placeholder="ICN">
+    </div>
+    <label class="toggle" for="samecarrier">
+      <input type="checkbox" id="samecarrier" checked>
+      One carrier only
+    </label>
+    <datalist id="airports"></datalist>
+  </div>
+
+  <div class="board-head">
+    <h2 id="routeTitle">Stop here</h2>
+    <span class="count" id="count"></span>
+  </div>
+  <div class="board" id="board"></div>
+
+  <div class="colophon">
+    <div>
+      <h3>What's real here</h3>
+      Airports, timezones, the route graph and the stopover-programme table are real data.
+      <b>Flight times are not</b> — no schedule feed is wired up yet, so the dial models a layover
+      rather than reporting one.
+    </div>
+    <div>
+      <h3>Route graph</h3>
+      OpenFlights, roughly 2014. Deliberately used only as a <b>candidate filter</b>: it says a
+      carrier once flew a pair, never that a seat exists today.
+    </div>
+    <div>
+      <h3>Stopover programmes</h3>
+      Hand-curated, <span id="progDate"></span>. Terms shift by fare, cabin and point of sale.
+      Every row is a <b>lead to verify</b> with the carrier, not a promise.
+    </div>
+  </div>
+</div>
+
+<script>
+const F = {
+  amber:'★', warn:'⚠', info:'·',
+};
+let DATA = null, SELECTED = null, LAYOVER_H = 16, ARRIVE_H = 16;
+
+/* ── time, matching src/engine/time.mjs ──────────────────────────── */
+const fmtCache = new Map();
+function dtf(tz){
+  let f = fmtCache.get(tz);
+  if(!f){ f = new Intl.DateTimeFormat('en-US',{timeZone:tz,year:'numeric',month:'2-digit',
+    day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}); fmtCache.set(tz,f); }
+  return f;
+}
+function localParts(instant, tz){
+  const p = {};
+  for(const part of dtf(tz).formatToParts(instant)) if(part.type!=='literal') p[part.type]=part.value;
+  return {date:`${p.year}-${p.month}-${p.day}`, time:`${p.hour}:${p.minute}`, hour:+p.hour};
+}
+/* Build a UTC instant for a wall-clock time in a zone. The local→UTC direction
+   is ambiguous across DST, so guess, measure the offset, correct, re-check. */
+function instantFor(y,mo,d,h,mi,tz){
+  let guess = Date.UTC(y,mo-1,d,h,mi);
+  for(let i=0;i<2;i++){
+    const p = localParts(new Date(guess), tz);
+    const [py,pm,pd] = p.date.split('-').map(Number);
+    const [ph,pmin] = p.time.split(':').map(Number);
+    const drift = Date.UTC(py,pm-1,pd,ph,pmin) - Date.UTC(y,mo-1,d,h,mi);
+    if(!drift) break;
+    guess -= drift;
+  }
+  return new Date(guess);
+}
+function minutesInLocalWindow(from,to,tz,startH,endH,step=15){
+  const total = (to-from)/60000; if(total<=0) return 0;
+  const wraps = endH <= startH; let inside = 0;
+  for(let o=0;o<total;o+=step){
+    const h = localParts(new Date(from.getTime()+o*60000), tz).hour;
+    const hit = wraps ? (h>=startH||h<endH) : (h>=startH&&h<endH);
+    if(hit) inside += Math.min(step,total-o);
+  }
+  return inside;
+}
+const daysBetween=(a,b)=>Math.round((Date.parse(b+'T00:00Z')-Date.parse(a+'T00:00Z'))/864e5);
+
+/* ── layover, matching src/engine/layover.mjs ────────────────────── */
+function classify(arrival, departure, tz){
+  const minutes = (departure-arrival)/60000;
+  if(!(minutes>0)) return {minutes,valid:false};
+  const a = localParts(arrival,tz), d = localParts(departure,tz);
+  const spans = daysBetween(a.date,d.date);
+  const touchesNight = minutesInLocalWindow(arrival,departure,tz,1,5)>0;
+  const isOvernight = minutes>=480 && (spans>0 || touchesNight);
+  return {
+    minutes, valid:true,
+    cls: minutes>1440 ? 'stopover' : minutes>=360 ? 'long' : 'short',
+    isStopover: minutes > 1440,           // the 24-hour line: MORE than 24h
+    isOvernight, nights: isOvernight ? Math.max(1,spans) : 0,
+    arrivalLocal:a, departureLocal:d,
+  };
+}
+function usableCityHours(arrival, departure, tz){
+  const total=(departure-arrival)/60000; if(!(total>0)) return 0;
+  const asleep = minutesInLocalWindow(arrival,departure,tz,23,7);
+  return Math.max(0,(total - asleep - 45 - 120)/60);
+}
+
+/* ── geometry + ticketing, matching the engine ───────────────────── */
+const rad=d=>d*Math.PI/180;
+function distKm(a,b){
+  const A=DATA.airports[a],B=DATA.airports[b]; if(!A||!B) return null;
+  const dLat=rad(B.y-A.y), dLon=rad(B.x-A.x);
+  const h=Math.sin(dLat/2)**2+Math.cos(rad(A.y))*Math.cos(rad(B.y))*Math.sin(dLon/2)**2;
+  return 6371*2*Math.asin(Math.sqrt(h));
+}
+function detour(o,v,d){
+  const direct=distKm(o,d), legs=distKm(o,v)+distKm(v,d);
+  return (!direct||!legs) ? null : legs/direct;
+}
+const ALLIANCE_LABEL={star:'Star Alliance',oneworld:'oneworld',skyteam:'SkyTeam'};
+function ticketability(a,b){
+  if(!a||!b) return {status:'unknown',note:'Carrier unknown on at least one leg.'};
+  if(a===b) return {status:'same',note:'Same carrier — bookable as one multi-city itinerary.'};
+  const x=DATA.alliance[a], y=DATA.alliance[b];
+  if(x&&x===y) return {status:'alliance',
+    note:`Both ${ALLIANCE_LABEL[x]} — usually ticketable together, but not guaranteed.`};
+  return {status:'unknown',
+    note:'Different carriers with no known alliance link. If they will not sell as one ticket this '+
+         'becomes a self-transfer, with no protection if the first flight is late.'};
+}
+
+/* ── gateways ─────────────────────────────────────────────────────── */
+function metroMembers(code){
+  const a=DATA.airports[code];
+  if(a) return a.m ? Object.keys(DATA.airports).filter(k=>DATA.airports[k].m===a.m) : [code];
+  const members=Object.keys(DATA.airports).filter(k=>DATA.airports[k].m===code);
+  return members.length?members:[];
+}
+function findGateways(origin,dest,{onlySame=false,maxDetour=1.5,limit=14}={}){
+  const origins=metroMembers(origin), dests=metroMembers(dest);
+  if(!origins.length||!dests.length) return [];
+  const oM=new Set(origins.map(a=>DATA.airports[a].m||a));
+  const dM=new Set(dests.map(a=>DATA.airports[a].m||a));
+  const out=new Map();
+  for(const from of origins){
+    const prefix=from+'-';
+    for(const key in DATA.routes){
+      if(!key.startsWith(prefix)) continue;
+      const via=key.slice(prefix.length);
+      const viaM=DATA.airports[via]?.m||via;
+      if(oM.has(viaM)||dM.has(viaM)) continue;
+      const inbound=DATA.routes[key];
+      for(const to of dests){
+        const onward=DATA.routes[via+'-'+to]; if(!onward) continue;
+        const dr=detour(from,via,to); if(dr!=null&&dr>maxDetour) continue;
+        const same=inbound.filter(c=>onward.includes(c));
+        if(onlySame&&!same.length) continue;
+        let tkt = same.length ? ticketability(same[0],same[0]) : bestCross(inbound,onward);
+        const progs=Object.keys(DATA.programs).filter(c=>
+          DATA.programs[c].hubs.includes(via) && (same.includes(c)||inbound.includes(c)));
+        const cand={from,via,to,viaM,detour:dr,inbound,onward,same,tkt,progs,
+          city:DATA.airports[via].c,country:DATA.airports[via].k,tz:DATA.airports[via].z};
+        const id=from+'-'+via+'-'+(DATA.airports[to].m||to);
+        const prev=out.get(id);
+        if(prev&&rank(prev)<=rank(cand)) continue;
+        out.set(id,cand);
+      }
+    }
+  }
+  return [...out.values()].sort((a,b)=>rank(a)-rank(b)).slice(0,limit);
+}
+function bestCross(inb,onw){
+  let best={status:'unknown',note:'No known link between these carriers.'};
+  for(const a of inb) for(const b of onw){
+    const t=ticketability(a,b);
+    if(t.status==='alliance') return t;
+  }
+  return best;
+}
+const SR={same:0,alliance:1,unknown:2};
+const rank=c=>SR[c.tkt.status]*100 + (c.progs.length?-30:0) + (c.detour!=null?(c.detour-1)*40:20);
+
+/* ── entitlements at a given layover length ───────────────────────── */
+function entitlements(cand, layover){
+  const notes=[];
+  for(const code of cand.progs){
+    const p=DATA.programs[code]; const hrs=layover.minutes/60;
+    if(p.fare && p.fare.free>=1){
+      if(layover.isStopover) notes.push({kind:'good',
+        text:`<b>${p.name}: first stopover free per direction</b>${p.fare.fee?`, second ${p.fare.fee.amount} ${p.fare.fee.currency}`:''}. `+
+             `You are past the 24-hour line, so the programme applies.`});
+      else notes.push({kind:'info',
+        text:`Under 24 hours this is a <b>connection, not a stopover</b>, so ${p.name}'s free-stopover `+
+             `programme does not apply — and it costs no fare premium either. Push past 24h to use it.`});
+    } else if(p.fare && p.fare.unofficial && layover.isStopover){
+      notes.push({kind:'info',
+        text:`<b>${p.name} publishes no stopover programme</b>, but multi-city pricing is often at or below `+
+             `the equivalent connecting fare. Worth pricing — no guarantee.`});
+    }
+    if(p.hotel){
+      const meets = p.hotel.min==null || hrs>=p.hotel.min;
+      if(p.hotel.needsNoShorter===true) notes.push({kind:'warn',
+        text:`<b>${p.hotel.prog||'The free hotel'} applies only when no shorter connection exists.</b> `+
+             `Choosing this longer layover will normally disqualify you — budget for the room.`});
+      else if(meets) notes.push({kind:'info',
+        text:`${p.name} may provide a hotel${p.hotel.min?` on layovers over ${p.hotel.min}h`:''}`+
+             `${p.hotel.needsNoShorter==='unknown'?'. May not apply to a stopover you chose — confirm with the carrier.':'. Confirm eligibility.'}`});
+    }
+    if(p.tour){
+      const min=p.tour.min||0, max=p.tour.max??Infinity;
+      if(hrs>=min&&hrs<=max) notes.push({kind:'good',
+        text:`<b>${p.tour.prog||'Free transit tour'}</b> available on layovers of ${min}h and up.`});
+    }
+  }
+  return notes;
+}
+
+/* ── render ───────────────────────────────────────────────────────── */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtH=m=>`${Math.floor(m/60)}h ${String(Math.round(m%60)).padStart(2,'0')}m`;
+
+function render(){
+  const from=$('from').value.trim().toUpperCase(), to=$('to').value.trim().toUpperCase();
+  const onlySame=$('samecarrier').checked;
+  const board=$('board');
+
+  if(!DATA.airports[from]&&!metroMembers(from).length || !DATA.airports[to]&&!metroMembers(to).length){
+    board.innerHTML=`<div class="empty"><h3>Unknown airport</h3>
+      Use a three-letter IATA code — <b>SEA</b>, <b>ICN</b>, <b>LHR</b> — or a city code like
+      <b>TYO</b> for all of Tokyo. ${Object.keys(DATA.airports).length} airports are loaded.</div>`;
+    $('count').textContent=''; return;
+  }
+
+  const cands=findGateways(from,to,{onlySame});
+  $('routeTitle').textContent = `${from} → ${to} · stop here`;
+  $('count').textContent = cands.length
+    ? `${cands.length} gateway${cands.length===1?'':'s'} · ranked by ticketing, then programme, then detour`
+    : '';
+
+  if(!cands.length){
+    board.innerHTML=`<div class="empty"><h3>Nothing in between</h3>
+      No gateway in the route graph connects <b>${esc(from)}</b> to <b>${esc(to)}</b> within 1.5× the
+      nonstop distance${onlySame?' on a single carrier':''}.
+      ${onlySame?'Try turning off <b>One carrier only</b> — an alliance partner may still ticket it.':
+      'These two may simply not share a plausible connecting city.'}</div>`;
+    return;
+  }
+
+  if(!SELECTED || !cands.some(c=>c.via===SELECTED)) SELECTED = cands[0].via;
+
+  board.innerHTML = cands.map(c=>{
+    const open = c.via===SELECTED;
+    const tags = [
+      `<span class="chip ${c.tkt.status}">${c.tkt.status==='same'?'one ticket':c.tkt.status==='alliance'?'alliance':'unverified'}</span>`,
+      ...c.progs.map(p=>`<span class="chip prog">${esc(p)} programme</span>`),
+    ].join('');
+    return `<button class="row" data-via="${esc(c.via)}" aria-expanded="${open}">
+        <span class="code">${esc(c.via)}</span>
+        <span class="place">
+          <span class="city">${esc(c.city)}</span>
+          <span class="country">${esc(c.country)}</span>
+        </span>
+        <span class="detour">${c.detour!=null?c.detour.toFixed(2)+'×':'—'}</span>
+        <span class="tags">${tags}</span>
+      </button>${open?detailHtml(c):''}`;
+  }).join('');
+
+  board.querySelectorAll('.row').forEach(el=>el.addEventListener('click',()=>{
+    SELECTED = el.dataset.via===SELECTED ? SELECTED : el.dataset.via;
+    render();
+  }));
+  wireDial(cands.find(c=>c.via===SELECTED));
+}
+
+function detailHtml(c){
+  const {lay,usable}=stateFor(c);
+  const boundaryPct=(24-2)/(48-2)*100;
+
+  return `<div class="detail">
+    <div class="dial">
+      <div class="dial-top">
+        <div>
+          <div class="dial-label">If your layover in ${esc(c.city)} were</div>
+          <div class="dial-val" id="dialVal">${LAYOVER_H}h 00m</div>
+        </div>
+        <div class="verdict ${lay.isStopover?'stop':'conn'}" id="dialVerdict">
+          ${lay.isStopover?'Stopover':'Connection'}${lay.isOvernight?` · ${lay.nights} night${lay.nights>1?'s':''}`:''}
+        </div>
+      </div>
+      <div class="track">
+        <span class="boundary-line" style="left:${boundaryPct}%"></span>
+        <input type="range" id="dial" min="2" max="48" step="1" value="${LAYOVER_H}"
+               aria-label="Layover length in hours">
+        <div class="ticks">
+          <span class="tick" style="left:0%">2h</span>
+          <span class="tick" style="left:${(8-2)/46*100}%">8h</span>
+          <span class="tick boundary" style="left:${boundaryPct}%">24h — the stopover line</span>
+          <span class="tick" style="left:100%;transform:translateX(-100%)">48h</span>
+        </div>
+      </div>
+    </div>
+
+    <dl class="readout" id="readout">${readoutHtml(c,lay,usable)}</dl>
+    <div class="notes" id="notesBlock">${notesHtml(c,lay)}</div>
+  </div>`;
+}
+
+function readoutHtml(c,lay,usable){
+  const dayGap=Math.round((Date.parse(lay.departureLocal.date)-Date.parse(lay.arrivalLocal.date))/864e5);
+  return `<div class="cell"><dt>On the ground</dt><dd>${fmtH(lay.minutes)}</dd></div>
+    <div class="cell"><dt>Arrive / depart</dt><dd>${lay.arrivalLocal.time} → ${lay.departureLocal.time}
+      <small>${dayGap?'+'+dayGap+'d':'same day'}</small></dd></div>
+    <div class="cell"><dt>Usable in city</dt><dd>${usable.toFixed(1)}h
+      <small>after border, transfers, sleep</small></dd></div>
+    <div class="cell"><dt>Detour</dt><dd>${c.detour!=null?c.detour.toFixed(2)+'×':'—'}
+      <small>vs nonstop</small></dd></div>`;
+}
+
+function notesHtml(c,lay){
+  const carriers = c.same.length
+    ? `<span>both legs:</span> ${c.same.join(' · ')}`
+    : `<span>to ${c.via}:</span> ${c.inbound.slice(0,5).join(' ')} &nbsp; <span>onward:</span> ${c.onward.slice(0,5).join(' ')}`;
+  return `<div class="note ${c.tkt.status==='same'?'good':c.tkt.status==='unknown'?'warn':'info'}">
+      <span class="mk">${c.tkt.status==='same'?F.amber:c.tkt.status==='unknown'?F.warn:F.info}</span>
+      <span>${c.tkt.note}<br><span class="carriers">${carriers}</span></span>
+    </div>
+    ${entitlements(c,lay).map(n=>`<div class="note ${n.kind}">
+      <span class="mk">${n.kind==='good'?F.amber:n.kind==='warn'?F.warn:F.info}</span>
+      <span>${n.text}</span></div>`).join('')}
+    ${lay.isOvernight?`<div class="note info"><span class="mk">${F.info}</span>
+      <span>An overnight means <b>clearing immigration and entering ${esc(c.country)}</b> — transit-without-visa
+      rules will not help. Check you can enter on your passport before counting on this.</span></div>`:''}`;
+}
+
+/* Recompute a candidate at the current dial position. */
+function stateFor(c){
+  const now=new Date();
+  const arrival=instantFor(now.getUTCFullYear(),now.getUTCMonth()+1,now.getUTCDate()+28,ARRIVE_H,0,c.tz);
+  const departure=new Date(arrival.getTime()+LAYOVER_H*3600000);
+  const lay=classify(arrival,departure,c.tz);
+  return {lay, usable:usableCityHours(arrival,departure,c.tz)};
+}
+
+/* The dial updates the affected regions in place. Re-rendering the whole board
+   on every input event tore the slider out from under the pointer mid-drag. */
+function wireDial(c){
+  const dial=$('dial'); if(!dial||!c) return;
+  dial.addEventListener('input',e=>{
+    LAYOVER_H=+e.target.value;
+    const {lay,usable}=stateFor(c);
+    $('dialVal').textContent=`${LAYOVER_H}h 00m`;
+    const v=$('dialVerdict');
+    v.className='verdict '+(lay.isStopover?'stop':'conn');
+    v.textContent=(lay.isStopover?'Stopover':'Connection')
+      +(lay.isOvernight?` · ${lay.nights} night${lay.nights>1?'s':''}`:'');
+    $('readout').innerHTML=readoutHtml(c,lay,usable);
+    $('notesBlock').innerHTML=notesHtml(c,lay);
+  });
+}
+
+/* ── boot ─────────────────────────────────────────────────────────── */
+fetch('data.json').then(r=>r.json()).then(d=>{
+  DATA=d;
+  $('meta').textContent=`${d.meta.airports.toLocaleString()} airports · ${d.meta.routes.toLocaleString()} routes`;
+  $('progDate').textContent=d.meta.programsChecked;
+  const dl=$('airports');
+  dl.innerHTML=Object.entries(d.airports)
+    .map(([k,a])=>`<option value="${k}">${esc(a.c)}, ${esc(a.k)}</option>`).join('');
+  ['from','to'].forEach(id=>$(id).addEventListener('change',()=>{SELECTED=null;render();}));
+  $('samecarrier').addEventListener('change',()=>{SELECTED=null;render();});
+  render();
+}).catch(err=>{
+  $('board').innerHTML=`<div class="empty"><h3>Data did not load</h3>
+    The airport and route file could not be fetched. ${esc(err.message)}</div>`;
+});
+</script>
