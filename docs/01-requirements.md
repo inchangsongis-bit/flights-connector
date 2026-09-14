@@ -105,21 +105,41 @@ Roughly two-thirds of v0.1's complexity, all of it the risky part:
 
 ### 2.1 Formal definition of "overnight"
 
-At connection airport C, evaluated in C's IANA timezone, a layover is **overnight** when
-either:
+> **Corrected 2026-09-14 during implementation.** The original rule read
+> *(a) the local departure date is later than the local arrival date, **OR** (b) the layover is
+> ≥ 8h and touches local 01:00–05:00*. As an OR, (b) was dead weight and a 23:50 → 00:20
+> connection classified as overnight — it crosses a local midnight, so (a) fired. Thirty minutes
+> is not a night in Tokyo, and the doc's own commentary said such a case should be rejected, so
+> the prose and the rule disagreed. The corrected rule below is what
+> `src/engine/layover.mjs` implements, with a regression test.
 
-- (a) segment 2's scheduled local departure **date** is later than segment 1's scheduled
-  local arrival **date**; or
-- (b) the layover is ≥ `MIN_OVERNIGHT_HOURS` (default 8) **and** the interval intersects
-  local 01:00–05:00 at C.
+At connection airport C, evaluated in C's IANA timezone, a layover is **overnight** when:
 
-(b) catches a 22:00 → 07:00 connection; the date test alone would also flag a useless
-23:50 → 00:20 hop, which (a)+(b) together reject.
+```
+overnight  ⟺  layover ≥ MIN_OVERNIGHT_MINUTES (default 8h)
+              AND ( the local calendar date advances
+                    OR the layover touches local 01:00–05:00 )
+```
 
-`nights_required` = local calendar dates spanned. Drives hotel cost, stopover-program
-eligibility, **and whether the traveller must legally enter the country** (§5.5).
+The duration test is the gate. The date/night test separates a genuine night on the ground from
+a long daytime sit. **Both are required** — either alone misclassifies.
 
----
+Worked cases:
+
+| Layover at C | Duration | Crosses date | Touches night | Overnight? |
+|---|---|---|---|---|
+| 16:20 → 09:00 next day | 16h 40m | yes | yes | **yes** |
+| 22:00 → 07:00 next day | 9h | yes | yes | **yes** |
+| 23:50 → 00:20 next day | 30m | yes | no | no — fails the duration gate |
+| 10:00 → 22:00 same day | 12h | no | no | no — a long daytime sit |
+| 21:00 → 04:30 next day | 7h 30m | yes | yes | no — just under the gate |
+
+Classification is independent of duration class (`short` < 6h, `long` 6–24h, `stopover` ≥ 24h);
+a layover carries both. `nights_required` is the local calendar dates spanned, and is forced to
+zero when `overnight` is false — a midnight crossed without meeting the bar needs no hotel.
+
+This drives hotel cost, stopover-programme eligibility, **and whether the traveller must legally
+enter the country** (§5.5).
 
 ## 3. Users and jobs
 

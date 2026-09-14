@@ -72,3 +72,32 @@ costing a hotel night to including one.
    layovers can cross that line.
 
 Open questions are in [§10 of the requirements](docs/01-requirements.md#10-open-questions).
+
+## Implementation status
+
+Planning is done; the engine is built and tested. The only remaining dependency for a working
+P1 is a live schedule feed, which is gated on the P0 probe.
+
+| | State |
+|---|---|
+| Requirements, data model, sourcing | Done — `docs/` |
+| Stopover programme table (19 carriers) | Done — `data/stopover-programs.json`, validated |
+| Airport + timezone reference (5,515 airports) | Done — `data/airports.json` |
+| Route graph (35,983 directional pairs) | Done — `data/routes.json` |
+| Gateway discovery, detour filtering | Done — `src/engine/gateways.mjs` |
+| Layover classification, usable-hours scoring | Done — `src/engine/layover.mjs` |
+| Ticketability, stopover matching | Done — `src/engine/{ticketability,stopover}.mjs` |
+| Tests (32, incl. date-line and both DST directions) | Done — `npm test` |
+| **Live schedules** | **Blocked on the P0 probe** — `scripts/schedule-source-test.mjs` |
+| UI | Not started |
+
+```bash
+npm run demo       # end-to-end pipeline on fixture schedules
+npm test           # 32 tests
+npm run check      # validate data + test
+npm run build:data # refresh reference data from OpenFlights
+```
+
+The demo runs the real engine, the real route graph and the real curated data against
+**invented** flight times. Swapping `getDeparturesFixture()` for a live
+`getDepartures(airport, date)` is the entire remaining dependency for P1.

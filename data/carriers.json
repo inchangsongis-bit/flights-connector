@@ -1,0 +1,10 @@
+{
+  "_note": "Hand-curated alliance membership, used only for the ticketability check (requirements §8.5). Alliance is a proxy for 'these two segments can plausibly share one ticket', not a guarantee — interline agreements exist outside alliances and not every intra-alliance pairing tickets cleanly. Anything not listed resolves to 'unknown', which surfaces as a warning rather than a silent assumption.",
+  "_checked_at": "2026-09-14",
+  "alliances": {
+    "star": ["NH", "OZ", "UA", "AC", "LH", "LX", "OS", "SN", "SK", "TP", "TK", "SQ", "TG", "NZ", "CA", "ZH", "MS", "ET", "AI", "BR", "SA", "AV", "CM", "A3", "LO"],
+    "oneworld": ["AA", "BA", "CX", "JL", "QF", "QR", "AY", "IB", "MH", "RJ", "UL", "AT", "AS"],
+    "skyteam": ["DL", "AF", "KL", "KE", "AZ", "CI", "MU", "CZ", "AM", "AR", "GA", "KQ", "ME", "RO", "SV", "UX", "VN", "VS", "MF"]
+  },
+  "unaligned": ["EK", "EY", "GF", "FI", "WN", "B6", "F9", "NK", "HA", "WS", "TR", "D7", "AK"]
+}

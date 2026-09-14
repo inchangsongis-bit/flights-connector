@@ -1,0 +1,15 @@
+{
+  "name": "layover-finder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Find one-ticket itineraries with long or overnight layovers worth stopping for",
+  "engines": { "node": ">=20.11" },
+  "scripts": {
+    "test": "node --test 'src/**/*.test.mjs'",
+    "validate:data": "node scripts/validate-data.mjs",
+    "build:data": "node scripts/build-reference-data.mjs",
+    "demo": "node scripts/demo.mjs",
+    "check": "npm run validate:data && npm test"
+  }
+}
