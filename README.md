@@ -88,8 +88,11 @@ P1 is a live schedule feed, which is gated on the P0 probe.
 | Layover classification, usable-hours scoring | Done — `src/engine/layover.mjs` |
 | Ticketability, stopover matching | Done — `src/engine/{ticketability,stopover}.mjs` |
 | Tests (32, incl. date-line and both DST directions) | Done — `npm test` |
-| **Live schedules** | **Blocked on the P0 probe** — `scripts/schedule-source-test.mjs` |
-| UI | Not started |
+| Entry / visa rules, date-aware | Done — `data/entry-rules.json`, `src/engine/entry.mjs` |
+| UI — Layover Board | Done — `web/`, published |
+| **Schedule source proven** | **✅ AeroDataBox reaches +90 days** (2026-09-15) |
+| Schedule adapter | Written — `src/adapters/aerodatabox.mjs`, field mapping pending one `--shape` run |
+| Live schedules in the engine | Next |
 
 ```bash
 npm run demo       # end-to-end pipeline on fixture schedules

@@ -8,6 +8,25 @@ Companion to [`02-data-model.md`](./02-data-model.md). v0.2, rewritten for the
 > **D-3** $0 budget, free tiers only · **D-4** personal now, public later · **D-5** single
 > ticket only.
 
+> ## ✅ P0 CLEARED — 2026-09-15
+>
+> **AeroDataBox forward schedules reach at least +90 days**, returning 400+ departures a day
+> from SEA. Run on the user's own machine (this environment's egress policy blocks the host).
+>
+> ```
+> +  7d  2026-09-22   OK   443 departures from SEA
+> + 28d  2026-10-13   OK   408 departures from SEA
+> + 90d  2026-12-14   OK   430 departures from SEA
+> ```
+>
+> That was the question that could still have sunk the project (§3). It is answered: **the $0
+> path works.** The free Basic tier on RapidAPI, no card.
+>
+> Remaining unknown: the **per-field mapping** inside a flight record. The probe counted the
+> `departures` array but never read inside one, so `src/adapters/aerodatabox.mjs` infers the
+> field paths. `--shape` resolves each field against a real record and reports which candidate
+> path won, settling it in one call.
+
 > **Confidence marking.** Vendor terms move constantly and several claims below come from
 > secondary sources, not vendor pages. Anything marked ⚠️ **verify** must be confirmed
 > directly before it is designed around. Researched 2026-09-05.
