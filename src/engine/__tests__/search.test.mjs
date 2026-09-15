@@ -1,6 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createSearch, addDays, _scoreForTests } from '../search.mjs';
+import { toExportPayload } from '../serialise.mjs';
 import { network, entryRules } from '../data-node.mjs';
 
 /** A fake schedule source: no network, and it counts its own calls. */
@@ -405,5 +406,34 @@ describe('API budget', () => {
     assert.equal(res.reason, 'dry-run');
     assert.equal(n, 2, 'nothing beyond the origin board');
     assert.ok(res.plan[0].boards.length > 0, 'the plan names the boards it would fetch');
+  });
+});
+
+describe('exported payload', () => {
+  test('REGRESSION: carries origin and destination', async () => {
+    // They were omitted, so the board rendered "undefined → NRT → undefined"
+    // while the candidate object had both all along.
+    const source = fakeSource(BOARDS);
+    const search = createSearch({ source, network, entryRules });
+    const result = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13');
+    const payload = toExportPayload({
+      query: { origin: 'SEA', destination: 'ICN', date: '2026-10-13' },
+      result,
+    });
+    const c = payload.candidates[0];
+    assert.equal(c.origin, 'SEA');
+    assert.equal(c.destination, 'ICN');
+    assert.equal(c.gateway, 'NRT');
+  });
+
+  test('instants serialise as ISO strings, not Date objects', async () => {
+    const source = fakeSource(BOARDS);
+    const search = createSearch({ source, network, entryRules });
+    const result = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13');
+    const payload = toExportPayload({ query: {}, result });
+    const c = payload.candidates[0];
+    assert.equal(typeof c.leg1.departureUtc, 'string');
+    assert.match(c.leg1.departureUtc, /^\d{4}-\d{2}-\d{2}T/);
+    assert.equal(JSON.parse(JSON.stringify(payload)).candidates[0].origin, 'SEA', 'survives a JSON round trip');
   });
 });

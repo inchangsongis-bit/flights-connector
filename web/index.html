@@ -664,12 +664,15 @@ function bookingHtml(c) {
 
   return `<div class="book">
     <div class="book-row">
-      ${b.carrier ? `<a class="btn primary" href="${esc(b.carrier.url)}" target="_blank" rel="noopener">
+      ${b.multiCity ? `<a class="btn primary" href="${esc(b.multiCity.url)}" target="_blank" rel="noopener">
+        See both legs priced together ↗</a>` : ''}
+      ${b.carrier ? `<a class="btn" href="${esc(b.carrier.url)}" target="_blank" rel="noopener">
         Book on ${esc(b.carrier.carrierName)} ↗</a>` : ''}
       ${legBtns}
       <button class="btn ghost" data-copy="${esc(b.itineraryText)}">Copy itinerary</button>
     </div>
     <p class="book-note">${esc(b.caveat)}</p>
+    ${b.multiCity?.caveat ? `<p class="book-note">${esc(b.multiCity.caveat)}</p>` : ''}
     ${b.carrier?.note ? `<p class="book-note">${esc(b.carrier.note)}</p>` : ''}
     <div class="paste">${esc(b.itineraryText)}</div>
   </div>`;

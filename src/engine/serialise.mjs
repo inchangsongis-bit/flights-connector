@@ -38,6 +38,10 @@ export function toExportPayload({ query, result, generatedAt = new Date() }) {
       stopoverPrograms: g.stopoverPrograms,
     })),
     candidates: result.candidates.map((c) => ({
+      // Origin and destination were omitted here, so the exported payload showed
+      // "undefined → NRT → undefined" even though the candidate carried both.
+      origin: c.origin,
+      destination: c.destination,
       gateway: c.gateway,
       gatewayCity: c.gatewayCity,
       gatewayCountry: c.gatewayCountry,

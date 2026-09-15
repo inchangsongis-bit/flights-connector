@@ -6,17 +6,23 @@
  * now it was a dead end: the CLI said "confirm in ANA's multi-city search" and
  * offered no way to get there.
  *
- * WHY THERE IS NO MULTI-CITY DEEP LINK
- * ────────────────────────────────────
- * Neither Google Flights nor Kayak publishes a stable multi-city URL format.
- * Google's `tfs` parameter is a base64url-encoded protobuf that was
- * reverse-engineered, not documented, and changes without notice.
+ * THE MULTI-CITY LINK, AND WHY IT EXISTS DESPITE BEING FRAGILE
+ * ───────────────────────────────────────────────────────────
+ * This originally shipped without one, on the reasoning that Google's `tfs`
+ * parameter is reverse-engineered rather than published and a link that breaks
+ * at the booking step is worse than none.
  *
- * A link that silently breaks at the booking step is worse than no link. By then
- * the user has invested a search, and a dead handoff discredits everything
- * upstream of it. So this module generates only links whose formats are
- * ordinary and user-facing, and labels each one by what it actually does.
+ * That was the wrong trade. Without it the app could find an itinerary and then
+ * only tell the user to go and retype it — which is not finding them a ticket.
+ * A fragile link that works today beats a dead end, *provided* the fragility is
+ * stated and something stable sits beside it. So: the multi-city link is
+ * primary, per-leg searches and the carrier's own site remain as fallbacks, and
+ * every link says what it does.
+ *
+ * `tfs` encoding lives in tfs.mjs and is verified against the documented schema.
  */
+
+import { googleFlightsUrl } from './tfs.mjs';
 
 export function createBookingLinks(data) {
   const carriers = data.carriers ?? {};
@@ -67,12 +73,40 @@ export function createBookingLinks(data) {
     ].join('\n');
   }
 
+  /**
+   * One Google Flights search containing BOTH legs — the actual itinerary,
+   * priced as one multi-city trip.
+   *
+   * Returns null rather than a malformed URL if anything about the legs is
+   * unusable, so a bad link never reaches the user.
+   */
+  function multiCity(legs, opts = {}) {
+    try {
+      return {
+        provider: 'google_flights',
+        label: 'Open both legs in Google Flights',
+        url: googleFlightsUrl(legs, { adults: opts.adults ?? 1 }),
+        whatItDoes: 'A multi-city search containing both legs, priced as one trip. '
+          + 'This is the itinerary, not a component of it.',
+        caveat: 'Google does not publish this URL format, so it may stop working without notice — '
+          + 'the per-leg links below always will.',
+        confidence: 'medium',
+      };
+    } catch {
+      return null;
+    }
+  }
+
   /** Everything a candidate needs to become a booking. */
   function forCandidate(candidate) {
     const leg1Date = String(candidate.leg1.departureLocal ?? candidate.leg1.departureUtc ?? '').slice(0, 10);
     const leg2Date = String(candidate.leg2.departureLocal ?? candidate.leg2.departureUtc ?? '').slice(0, 10);
 
     return {
+      multiCity: multiCity([
+        { from: candidate.origin, to: candidate.gateway, date: leg1Date },
+        { from: candidate.gateway, to: candidate.destination, date: leg2Date },
+      ]),
       // Same carrier on both legs is the case where one multi-city booking
       // genuinely works, so that is the primary destination.
       carrier: carrierBooking(candidate.leg1.carrier),
@@ -97,5 +131,5 @@ export function createBookingLinks(data) {
     };
   }
 
-  return { legSearch, carrierBooking, itineraryText, forCandidate, checkedAt: data.checked_at };
+  return { legSearch, carrierBooking, multiCity, itineraryText, forCandidate, checkedAt: data.checked_at };
 }

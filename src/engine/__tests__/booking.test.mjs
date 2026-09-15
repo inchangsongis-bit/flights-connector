@@ -82,3 +82,32 @@ describe('no fabricated deep links', () => {
     assert.equal(b.legs.length, 2, 'per-leg searches still work — they are carrier-agnostic');
   });
 });
+
+describe('the multi-city link is the primary handoff', () => {
+  const b = bookingLinks.forCandidate(candidate);
+
+  test('one link opens BOTH legs priced together', () => {
+    assert.ok(b.multiCity, 'a multi-city link must exist — without it the app cannot hand over a ticket');
+    assert.match(b.multiCity.url, /^https:\/\/www\.google\.com\/travel\/flights\?tfs=/);
+    assert.match(b.multiCity.whatItDoes, /both legs/i);
+  });
+
+  test('it states its own fragility rather than hiding it', () => {
+    assert.match(b.multiCity.caveat, /does not publish this URL format/i);
+    assert.match(b.multiCity.caveat, /per-leg links below/i, 'and points at the stable fallback');
+  });
+
+  test('the stable fallbacks survive alongside it', () => {
+    assert.ok(b.carrier, 'the carrier site is where the ticket is actually bought');
+    assert.equal(b.legs.length, 2, 'per-leg searches remain');
+  });
+
+  test('a candidate with an unusable date yields no link rather than a broken one', () => {
+    const bad = bookingLinks.forCandidate({
+      ...candidate,
+      leg1: { ...candidate.leg1, departureLocal: 'sometime next week' },
+    });
+    assert.equal(bad.multiCity, null, 'a malformed URL must never reach the user');
+    assert.ok(bad.legs.length, 'the rest of the handoff still works');
+  });
+});

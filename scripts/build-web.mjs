@@ -33,7 +33,7 @@ const MIN_DEGREE = 8;
 
 /** The pure modules the browser needs. data-node.mjs stays behind — it reads disk. */
 const ENGINE_FILES = ['time.mjs', 'layover.mjs', 'network.mjs', 'entry.mjs', 'baggage.mjs',
-  'booking.mjs', 'index.mjs'];
+  'tfs.mjs', 'booking.mjs', 'index.mjs'];
 
 const kb = (p) => `${(statSync(p).size / 1024).toFixed(0)}KB`;
 

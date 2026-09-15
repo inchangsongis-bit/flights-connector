@@ -183,6 +183,10 @@ if (!res.candidates.length) {
     const bk = c.booking;
     if (bk) {
       console.log('');
+      if (bk.multiCity) {
+        console.log(`  OPEN   ${bk.multiCity.label}`);
+        console.log(`         ${bk.multiCity.url}`);
+      }
       if (bk.carrier) {
         console.log(`  BOOK   ${bk.carrier.carrierName} multi-city — ${bk.carrier.url}`);
         if (bk.carrier.note) console.log(`         ${bk.carrier.note}`);
