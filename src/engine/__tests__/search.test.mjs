@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { createSearch, addDays } from '../search.mjs';
+import { createSearch, addDays, _scoreForTests } from '../search.mjs';
 import { network, entryRules } from '../data-node.mjs';
 
 /** A fake schedule source: no network, and it counts its own calls. */
@@ -148,5 +148,79 @@ describe('findOvernightCandidates', () => {
     const res = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13');
     assert.equal(res.reason, 'no-outbound-flights');
     assert.ok(res.gateways.length, 'the gateways it tried are still reported');
+  });
+});
+
+describe('ranking', () => {
+  const base = {
+    ticketability: { status: 'same' },
+    usableCityHours: 6,
+    detourRatio: 1.0,
+    program: null,
+  };
+
+  test('REGRESSION: the detour term uses excess over a nonstop, not the raw ratio', () => {
+    // `c.detourRatio ?? 1.5 - 1` parses as `c.detourRatio ?? (1.5 - 1)`, because
+    // ?? binds looser than -. Every candidate therefore carried a ~20-point
+    // penalty proportional to its raw ratio. A direct routing must score 0 here.
+    const direct = _scoreForTests({ ...base, detourRatio: 1.0 });
+    const slight = _scoreForTests({ ...base, detourRatio: 1.06 });
+    assert.equal(slight - direct, 1.2000000000000028, 'a 6% detour costs 1.2 points, not 21.2');
+    assert.ok(Math.abs(direct - -24) < 0.001, `direct routing should carry no detour penalty, got ${direct}`);
+  });
+
+  test('a big detour is penalised proportionally', () => {
+    const near = _scoreForTests({ ...base, detourRatio: 1.06 });
+    const far = _scoreForTests({ ...base, detourRatio: 1.45 });
+    assert.ok(far > near);
+    assert.ok(Math.abs((far - near) - 7.8) < 0.01);
+  });
+
+  test('ticketability dominates everything else', () => {
+    const unticketable = _scoreForTests({ ...base, ticketability: { status: 'unknown' }, usableCityHours: 12 });
+    const ticketable = _scoreForTests({ ...base, usableCityHours: 0, detourRatio: 1.45 });
+    assert.ok(ticketable < unticketable, 'a poor routing you can book beats a great one you cannot');
+  });
+
+  test('a free stopover programme outweighs a moderate detour', () => {
+    const withProgramme = _scoreForTests({
+      ...base, detourRatio: 1.34, program: { highlights: [{ kind: 'free_stopover' }] },
+    });
+    const without = _scoreForTests({ ...base, detourRatio: 1.06 });
+    assert.ok(withProgramme < without, 'a free stopover is worth more than 28% of extra distance');
+  });
+
+  test('the below-threshold note is not mistaken for a benefit', () => {
+    const below = _scoreForTests({
+      ...base, program: { highlights: [{ kind: 'below_stopover_threshold' }] },
+    });
+    assert.equal(below, _scoreForTests(base), 'explaining why a programme does NOT apply earns no bonus');
+  });
+});
+
+describe('entry rules are never silently skipped', () => {
+  test('an overnight in a country with no rules still reports unknown', async () => {
+    // A live search through Vancouver and Beijing printed no entry advice at
+    // all, because the country-name map in this file lacked them. Silence reads
+    // as "fine". It must read as "not checked".
+    const source = fakeSource({
+      'SEA_2026-10-13': [flight('AC', 'AC 8803', 'YVR', '2026-10-13T17:50:00Z', '2026-10-13T19:00:00Z')],
+      'YVR_2026-10-14': [flight('AC', 'AC 63', 'ICN', '2026-10-14T19:20:00Z', '2026-10-15T07:05:00Z')],
+    });
+    const search = createSearch({ source, network, entryRules });
+    const { candidates } = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13',
+      { minLayoverHours: 8, maxLayoverHours: 36 });
+
+    const yvr = candidates.find((c) => c.gateway === 'YVR');
+    assert.ok(yvr, 'expected the Vancouver candidate');
+    assert.ok(yvr.entry, 'entry must be evaluated, not skipped');
+    assert.equal(yvr.entry.status, 'unknown');
+    assert.equal(yvr.entry.verifyBeforeTravel, true);
+  });
+
+  test('the country code comes from the airport record, not a hand-map', () => {
+    assert.equal(network.airport('YVR').countryCode, 'CA');
+    assert.equal(network.airport('PEK').countryCode, 'CN');
+    assert.equal(network.airport('NRT').countryCode, 'JP');
   });
 });

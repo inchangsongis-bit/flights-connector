@@ -96,13 +96,25 @@ export function createSearch({ source, network, entryRules = null }) {
         const program = network.matchStopoverProgram(leg1.carrier, leg1.destination, layover, true);
 
         // Entry rules are evaluated against the LAYOVER date, not today.
+        //
+        // The country code comes off the airport record (added at build time
+        // from OpenFlights' own country file). It used to come from a short
+        // hand-written map in this file, which silently skipped the check for
+        // any country missing from it — a live search through Vancouver and
+        // Beijing printed no entry advice at all, which reads as "fine" rather
+        // than "not checked". Now an unmapped country still produces a result,
+        // and that result is 'unknown'.
         let entry = null;
         let entryChange = null;
-        const cc = COUNTRY_CODES[gateway.viaCountry];
-        if (entryRules && cc && layover.isOvernight) {
+        if (entryRules && layover.isOvernight) {
           const layoverDate = layover.departureLocal.date;
-          entry = entryRules.evaluate(opt.passport, cc, layoverDate);
-          entryChange = entryRules.upcomingChange(opt.passport, cc, layoverDate, 180);
+          const cc = network.airport(gateway.via)?.countryCode ?? null;
+          entry = cc
+            ? entryRules.evaluate(opt.passport, cc, layoverDate)
+            : { status: 'unknown', countryCode: null, countryName: gateway.viaCountry,
+                confidence: 'none', sources: [], verifyBeforeTravel: true, arrivalFormalities: [],
+                note: 'No ISO country code for this airport, so entry rules could not be looked up.' };
+          entryChange = cc ? entryRules.upcomingChange(opt.passport, cc, layoverDate, 180) : null;
         }
 
         candidates.push({
@@ -136,17 +148,23 @@ export function createSearch({ source, network, entryRules = null }) {
   return { findOvernightCandidates };
 }
 
-/** Lower is better: ticketable first, then usable hours, then directness. */
+/**
+ * Lower is better: ticketable first, then a stopover programme, then usable
+ * hours, then directness.
+ *
+ * The detour term had an operator-precedence bug. `c.detourRatio ?? 1.5 - 1`
+ * parses as `c.detourRatio ?? (1.5 - 1)` because ?? binds looser than -, so the
+ * subtraction only ever applied to the fallback and every candidate carried a
+ * constant ~20-point penalty proportional to its raw ratio rather than to its
+ * excess over a nonstop. Parenthesised properly, a direct routing scores 0.
+ */
 function score(c) {
   const tkt = { same: 0, alliance: 1, unknown: 2 }[c.ticketability.status] * 100;
+  const programme = c.program?.highlights?.some((h) => h.kind === 'free_stopover'
+    || h.kind === 'transit_tour') ? -25 : 0;
   const usable = -Math.min(c.usableCityHours, 12) * 4;
-  const detour = (c.detourRatio ?? 1.5 - 1) * 20;
-  return tkt + usable + detour;
+  const detour = ((c.detourRatio ?? 1.5) - 1) * 20;
+  return tkt + programme + usable + detour;
 }
 
-/** Airport records carry a country name; entry rules are keyed by ISO alpha-2. */
-export const COUNTRY_CODES = {
-  Japan: 'JP', 'South Korea': 'KR', Taiwan: 'TW', 'Hong Kong': 'HK', Singapore: 'SG',
-  'United Arab Emirates': 'AE', Qatar: 'QA', Ethiopia: 'ET', 'Saudi Arabia': 'SA',
-  Bahrain: 'BH', Iceland: 'IS', Portugal: 'PT', Finland: 'FI', Panama: 'PA',
-};
+export { score as _scoreForTests };

@@ -129,3 +129,17 @@ describe('rule ordering is enforced, not assumed', () => {
     assert.equal(w.scheme, 'JESTA');
   });
 });
+
+describe('the verification guarantee holds on every path', () => {
+  test('including for a country with no rules at all', () => {
+    // The guarantee was originally only true for known countries — the branch
+    // where the app knows least was the one missing the flag.
+    for (const cc of ['CA', 'CN', 'XX', 'QA']) {
+      const r = evaluate('US', cc, '2026-10-13');
+      assert.equal(r.verifyBeforeTravel, true, `${cc} must demand verification`);
+      assert.ok(Array.isArray(r.arrivalFormalities), `${cc} must have an arrivalFormalities array`);
+      assert.equal(typeof r.status, 'string');
+      assert.equal(typeof r.confidence, 'string');
+    }
+  });
+});

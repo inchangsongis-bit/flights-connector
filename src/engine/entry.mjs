@@ -52,8 +52,19 @@ export function createEntryRules(data) {
   function evaluate(passport, countryCode, travelDate) {
     const country = countries[countryCode];
     if (!country) {
+      // Every result carries verifyBeforeTravel and arrivalFormalities, this
+      // branch included. It is the path where the app knows least, so it is the
+      // last place the verification flag should be missing — a caller checking
+      // `result.verifyBeforeTravel` would otherwise read undefined as "no need".
       return {
-        status: 'unknown', countryCode, confidence: 'none', sources: [],
+        status: 'unknown',
+        countryCode,
+        countryName: null,
+        confidence: 'none',
+        sources: [],
+        verifyBeforeTravel: true,
+        arrivalFormalities: [],
+        schengen: false,
         note: 'No entry rules recorded for this country. Check the relevant government source.',
       };
     }

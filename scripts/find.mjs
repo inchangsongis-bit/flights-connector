@@ -10,6 +10,7 @@
  *   --same-carrier    only routings one airline can ticket end to end
  *   --min=8 --max=36  layover band in hours
  *   --gateways=4      how many connection cities to price (each costs API calls)
+ *   --limit=6         how many candidates to print
  *   --no-cache        bypass the disk cache
  *
  * Results are CANDIDATES, not quotes: these flights operate on these dates and
@@ -89,14 +90,26 @@ if (!res.candidates.length) {
   }[res.reason] ?? 'No candidates.';
   console.log(`\nNothing found. ${why}`);
 } else {
-  console.log(`\n${'═'.repeat(74)}`);
-  console.log(`${res.candidates.length} OVERNIGHT CANDIDATE(S)`);
+  const limit = Number(flags.limit ?? 6);
+  const shown = res.candidates.slice(0, limit);
+  const stopovers = res.candidates.filter((c) => c.layover.class === 'stopover').length;
 
-  for (const c of res.candidates) {
+  console.log(`\n${'═'.repeat(74)}`);
+  console.log(`${res.candidates.length} CANDIDATE(S)`
+    + `${stopovers ? ` — ${stopovers} over the 24-hour stopover line` : ''}`);
+  if (res.candidates.length > shown.length) {
+    console.log(`Showing the best ${shown.length}. Use --limit=${res.candidates.length} for all.`);
+  }
+
+  for (const c of shown) {
     const L = c.layover;
     console.log(`\n${'─'.repeat(74)}`);
     console.log(`  ${c.origin} → ${c.gateway} → ${c.destination}   via ${c.gatewayCity}`);
-    console.log(`  ${L.isOvernight ? 'OVERNIGHT' : 'LAYOVER'} · ${formatMinutes(L.minutes)}`
+    // The 24-hour line is the project's central finding, so name it here rather
+    // than only reporting whether a night is involved. Over it, fare rules and
+    // stopover programmes apply; under it, the break is an ordinary connection.
+    const kind = L.class === 'stopover' ? 'STOPOVER (over 24h)' : L.isOvernight ? 'OVERNIGHT' : 'LAYOVER';
+    console.log(`  ${kind} · ${formatMinutes(L.minutes)}`
       + `${L.nightsRequired ? ` · ${L.nightsRequired} night${L.nightsRequired > 1 ? 's' : ''}` : ''}`
       + ` · ~${c.usableCityHours.toFixed(1)}h usable in the city`);
     console.log('─'.repeat(74));
@@ -118,6 +131,9 @@ if (!res.candidates.length) {
       const mark = c.entry.status === 'visa_free' ? '  ★' : c.entry.status === 'unknown' ? '  ⚠' : '  ·';
       console.log(`${mark} ${flags.passport ?? 'US'} passport → ${c.gatewayCountry}: ${entryRules.describe(c.entry)}`);
       console.log(`     ${c.entry.confidence} confidence, checked ${entryRules.checkedAt} — verify with the government`);
+      for (const f of c.entry.arrivalFormalities ?? []) {
+        if (f.required) console.log(`  · ${f.name} is also required${f.when ? `, ${f.when}` : ''}.`);
+      }
     }
     if (c.entryChange) console.log(`  ⚠ ${c.entryChange.text}`);
 

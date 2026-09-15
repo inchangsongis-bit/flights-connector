@@ -1,7 +1,7 @@
 {
   "_source": "OpenFlights (https://github.com/jpatokal/openflights), ODbL",
   "_generated_by": "scripts/build-reference-data.mjs",
-  "_generated_at": "2026-09-14",
+  "_generated_at": "2026-09-15",
   "_staleness_warning": "Route data is approximately 2014-era. Usable ONLY as a candidate pre-filter; every candidate must be confirmed against live schedules before display.",
   "routes": {
     "AAE-ALG": [

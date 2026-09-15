@@ -31,6 +31,10 @@ import { writeFile } from 'node:fs/promises';
 const SOURCES = {
   airports: 'https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat',
   routes: 'https://raw.githubusercontent.com/jpatokal/openflights/master/data/routes.dat',
+  // Country NAME -> ISO 3166-1 alpha-2. Airport records carry only the name,
+  // but entry rules are keyed by code, and a 205-row hand-maintained map is a
+  // liability. OpenFlights publishes the mapping, so use it.
+  countries: 'https://raw.githubusercontent.com/jpatokal/openflights/master/data/countries.dat',
 };
 
 /** OpenFlights ships RFC4180-ish CSV with quoted fields and \N for null. */
@@ -73,10 +77,23 @@ const metroOf = Object.fromEntries(
 
 async function main() {
   console.log('Fetching OpenFlights…');
-  const [airportLines, routeLines] = await Promise.all([
+  const [airportLines, routeLines, countryLines] = await Promise.all([
     fetchLines(SOURCES.airports),
     fetchLines(SOURCES.routes),
+    fetchLines(SOURCES.countries),
   ]);
+
+  // ── Country name -> ISO alpha-2 ─────────────────────────────────────────
+  const countryCode = {};
+  for (const line of countryLines) {
+    const [name, iso] = parseCsvLine(line);
+    if (name && iso && /^[A-Z]{2}$/.test(iso)) countryCode[name] = iso;
+  }
+  // OpenFlights' airport records use a few names its own country file does not.
+  Object.assign(countryCode, {
+    'South Korea': 'KR', 'North Korea': 'KP', 'Hong Kong': 'HK', Macau: 'MO',
+    Taiwan: 'TW', Czechia: 'CZ', 'Burma': 'MM',
+  });
 
   // ── Airports ────────────────────────────────────────────────────────────
   const airports = {};
@@ -97,6 +114,7 @@ async function main() {
       lat: Number(lat),
       lon: Number(lon),
       tz,
+      ...(countryCode[country] ? { countryCode: countryCode[country] } : {}),
       ...(metroOf[iata] ? { metro: metroOf[iata] } : {}),
     };
   }
@@ -134,7 +152,10 @@ async function main() {
   await writeFile('data/airports.json', `${JSON.stringify({ ...header, airports }, null, 2)}\n`);
   await writeFile('data/routes.json', `${JSON.stringify({ ...header, routes: routesOut }, null, 2)}\n`);
 
+  const withCode = Object.values(airports).filter((a) => a.countryCode).length;
   console.log(`  airports.json  ${Object.keys(airports).length} airports (${noTz} dropped for missing timezone)`);
+  console.log(`                 ${withCode} with an ISO country code`
+    + `${withCode < Object.keys(airports).length ? `, ${Object.keys(airports).length - withCode} without` : ''}`);
   console.log(`  routes.json    ${Object.keys(routesOut).length} directional pairs (${skipped} rows skipped)`);
   console.log(`  metro groups   ${Object.keys(METRO).length}`);
 }
