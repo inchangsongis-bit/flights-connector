@@ -65,3 +65,31 @@ The page states its own limits in the colophon rather than burying them:
 - the route graph is ~2014 OpenFlights, used strictly as a candidate filter
 - every stopover-programme row is a **lead to verify**, dated, never a promise
 - an overnight means clearing immigration, so it says so
+
+## Seeing real flights
+
+The page has no API key and never should — anyone with the link could read it. Instead the
+search runs on your machine and hands over only its results:
+
+```bash
+RAPIDAPI_KEY=... npm run find -- SEA ICN 2026-10-13 --json
+```
+
+That writes `web/results.json`, and the board renders a **real routings** band above the
+gateway explorer: actual flight numbers, actual times, the layover measured in UTC, plus the
+baggage, entry and stopover-programme verdicts for each.
+
+`results.json` is gitignored — it is the output of one search on one day, not project data.
+Without it the page falls back to the gateway explorer and the modelled dial, which is the
+honest default rather than an error state.
+
+**The published artifact deliberately has no `results.json`.** Publishing one would put a
+specific day's flights behind a permanent link with no indication they had gone stale, and a
+fixture-derived one would be worse still. The live board is a planning tool; real flights live
+next to the key that fetched them.
+
+### Why serialisation lives in `src/engine/serialise.mjs`
+
+The writer and the reader have to agree on a shape. Keeping the payload builder in the engine
+rather than inline in the CLI is the same lesson as the shared engine and the shared response
+parser: two copies of a contract drift, and the drift is silent.

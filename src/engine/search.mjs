@@ -165,6 +165,9 @@ export function createSearch({ source, network, entryRules = null, baggageRules 
             : { status: 'unknown', countryCode: null, countryName: gateway.viaCountry,
                 confidence: 'none', sources: [], verifyBeforeTravel: true, arrivalFormalities: [],
                 note: 'No ISO country code for this airport, so entry rules could not be looked up.' };
+          // The plain answer ("Visa-free for up to 90 days"), separate from the
+          // rule's caveat. Displaying the caveat alone reads as a non-answer.
+          entry.summary = entryRules.describe(entry);
           entryChange = cc ? entryRules.upcomingChange(opt.passport, cc, layoverDate, 180) : null;
         }
 

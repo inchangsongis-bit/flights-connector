@@ -14,6 +14,7 @@
     "demo": "node scripts/demo.mjs",
     "check": "npm run validate:data && npm test",
     "build:web": "node scripts/build-web.mjs",
-    "find": "node scripts/find.mjs"
+    "find": "node scripts/find.mjs",
+    "find:json": "node scripts/find.mjs --json"
   }
 }

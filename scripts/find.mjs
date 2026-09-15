@@ -13,6 +13,10 @@
  *   --limit=6         how many candidates to print
  *   --window=6-18     narrow the day to one 12h window (halves quota, misses evening flights)
  *   --no-cache        bypass the disk cache
+ *   --json[=path]     also write results to web/results.json, which the Layover
+ *                     Board loads. This is how the page shows REAL flights
+ *                     without an API key ever reaching the browser: the key
+ *                     stays on your machine, and only the results travel.
  *
  * Results are CANDIDATES, not quotes: these flights operate on these dates and
  * the carrier can ticket them, but price, seat availability and fare rules are
@@ -24,6 +28,9 @@ import { withDiskCache } from '../src/adapters/cache.mjs';
 import { createSearch } from '../src/engine/search.mjs';
 import { network, entryRules, baggageRules, PROGRAMS_CHECKED_AT } from '../src/engine/data-node.mjs';
 import { formatMinutes } from '../src/engine/time.mjs';
+import { toExportPayload } from '../src/engine/serialise.mjs';
+import { writeFile, mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 const args = process.argv.slice(2);
 const flags = Object.fromEntries(args.filter((a) => a.startsWith('--'))
@@ -152,6 +159,28 @@ if (!res.candidates.length) {
 
     console.log(`\n  → Confirm price and availability in ${c.leg1.carrier}'s multi-city search.`);
   }
+}
+
+// ── Optional export for the web UI ──────────────────────────────────────────
+// The page cannot hold the API key — anyone with the link could read it — so the
+// search runs here and hands over only its results. Serialisation lives in the
+// engine so the writer and the page cannot drift.
+if (flags.json) {
+  const out = typeof flags.json === 'string' ? flags.json : 'web/results.json';
+  const payload = toExportPayload({
+    query: {
+      origin, destination, date,
+      passport: flags.passport ?? 'US',
+      onlySameCarrier: Boolean(flags['same-carrier']),
+      minLayoverHours: Number(flags.min ?? 8),
+      maxLayoverHours: Number(flags.max ?? 36),
+    },
+    result: res,
+  });
+  await mkdir(dirname(out), { recursive: true });
+  await writeFile(out, `${JSON.stringify(payload, null, 2)}\n`);
+  console.log(`\n  Wrote ${res.candidates.length} candidate(s) to ${out}`);
+  console.log('  Open web/index.html to see them on the board.');
 }
 
 console.log(`\n${'═'.repeat(74)}`);

@@ -160,6 +160,27 @@ button,input,select{font:inherit;color:inherit}
 .empty h3{font-family:var(--display);font-size:20px;text-transform:uppercase;
   letter-spacing:.05em;margin-bottom:6px}
 
+/* ── live results ─────────────────────────────────── */
+.live{margin-top:26px;border:2px solid var(--amber-line);background:var(--surface)}
+.live-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;
+  gap:10px;padding:12px 14px;background:var(--amber-bg);border-bottom:1px solid var(--amber-line)}
+.live-head h2{font-size:17px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--amber)}
+.live-head .when{font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;color:var(--amber)}
+.flight{border-bottom:1px solid var(--rule);padding:14px}
+.flight:last-child{border-bottom:0}
+.flight-top{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:10px}
+.flight-route{font-family:var(--mono);font-size:19px;font-weight:600;letter-spacing:.04em}
+.flight-route b{color:var(--amber);font-weight:600}
+.flight-kind{font-family:var(--display);font-size:14px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.05em;padding:2px 7px;border:1px solid currentColor}
+.flight-kind.stop{color:var(--amber)}
+.flight-kind.conn{color:var(--ink-2)}
+.legs{display:grid;gap:3px;font-family:var(--mono);font-size:12.5px;
+  font-variant-numeric:tabular-nums;color:var(--ink-2);margin-bottom:10px}
+.legs b{color:var(--ink);font-weight:500}
+.legs .gap{color:var(--amber);padding:3px 0}
+
 /* ── colophon ─────────────────────────────────────── */
 .colophon{margin-top:44px;padding-top:18px;border-top:2px solid var(--ink);
   display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
@@ -213,6 +234,8 @@ button,input,select{font:inherit;color:inherit}
     <datalist id="airports"></datalist>
   </div>
 
+  <div id="live"></div>
+
   <div class="board-head">
     <h2 id="routeTitle">Stop here</h2>
     <span class="count" id="count"></span>
@@ -230,6 +253,12 @@ button,input,select{font:inherit;color:inherit}
       <h3>Route graph</h3>
       OpenFlights, roughly 2014. Deliberately used only as a <b>candidate filter</b>: it says a
       carrier once flew a pair, never that a seat exists today.
+    </div>
+    <div>
+      <h3>Real flights</h3>
+      The dial below models a layover. To see <b>actual flights</b>, run
+      <code>npm run find -- SEA ICN 2026-10-13 --json</code> — the API key stays on your machine
+      and only the results reach this page.
     </div>
     <div>
       <h3>Entry rules</h3>
@@ -504,6 +533,99 @@ function wireDial(c) {
     $('notesBlock').innerHTML = notesHtml(c, lay);
   });
 }
+
+/**
+ * Real flights, when a search has been exported.
+ *
+ * The page cannot hold an API key — anyone with the link could read it — so
+ * `npm run find -- ... --json` runs the search on your machine and writes only
+ * its results here. Absent that file the board stays a planning tool, which is
+ * the honest default rather than an error state.
+ */
+function renderLive(data) {
+  const el = $('live');
+  if (!data?.candidates?.length) { el.innerHTML = ''; return; }
+
+  const q = data.query ?? {};
+  const when = new Date(data.generatedAt);
+  const age = Math.round((Date.now() - when.getTime()) / 36e5);
+
+  el.innerHTML = `<section class="live">
+    <div class="live-head">
+      <h2>${data.candidates.length} real routing${data.candidates.length === 1 ? '' : 's'} ·
+        ${esc(q.origin ?? '')} → ${esc(q.destination ?? '')} ${esc(q.date ?? '')}</h2>
+      <span class="when">searched ${age < 1 ? 'just now' : `${age}h ago`} ·
+        ${data.apiCalls ?? '?'} api calls</span>
+    </div>
+    ${data.candidates.map(liveCard).join('')}
+  </section>`;
+}
+
+function liveCard(c) {
+  const isStopover = c.layoverClass === 'stopover';
+  const hrs = `${Math.floor(c.layoverMinutes / 60)}h ${String(c.layoverMinutes % 60).padStart(2, '0')}m`;
+  const notes = [];
+
+  if (c.ticketability) {
+    notes.push({ kind: c.ticketability.status === 'same' ? 'good'
+      : c.ticketability.status === 'unknown' ? 'warn' : 'info', text: esc(c.ticketability.note) });
+  }
+  for (const h of c.programHighlights ?? []) {
+    notes.push({ kind: h.kind === 'hotel_disqualified' ? 'warn'
+      : h.kind === 'free_stopover' || h.kind === 'transit_tour' ? 'good' : 'info', text: esc(h.text) });
+  }
+  if (c.baggage) {
+    notes.push({ kind: c.baggage.status === 'through_checked' ? 'good'
+      : c.baggage.status === 'recheck' ? 'warn' : 'info', text: `<b>Bag:</b> ${esc(c.baggage.text)}` });
+    if (c.baggage.koreanCustoms) {
+      notes.push({ kind: 'warn', text: 'Korean customs require collecting your bag at the first '
+        + 'point of entry, whatever the tag says.' });
+    }
+  }
+  if (c.entry) {
+    notes.push({ kind: c.entry.status === 'visa_free' ? 'good'
+      : c.entry.status === 'unknown' ? 'warn' : 'info',
+      text: `<b>Entry to ${esc(c.gatewayCountry ?? '?')}:</b> `
+        + `${esc(c.entry.summary ?? c.entry.status)}`
+        + `<span class="carriers">${esc(c.entry.confidence)} confidence · verify with the government</span>` });
+    for (const f of c.entry.arrivalFormalities ?? []) {
+      if (f.required) notes.push({ kind: 'info', text: `<b>${esc(f.name)}</b> is also required.` });
+    }
+  }
+  if (c.entryChange) notes.push({ kind: 'warn', text: esc(c.entryChange.text) });
+
+  return `<article class="flight">
+    <div class="flight-top">
+      <span class="flight-route">${esc(c.leg1.carrier ?? '')} · <b>${esc(c.gateway)}</b> ${esc(c.gatewayCity ?? '')}</span>
+      <span class="flight-kind ${isStopover ? 'stop' : 'conn'}">
+        ${isStopover ? 'Stopover' : c.isOvernight ? 'Overnight' : 'Layover'} ${hrs}</span>
+      <span class="dial-label">~${(c.usableCityHours ?? 0).toFixed(1)}h usable ·
+        ${c.detourRatio ? `${c.detourRatio.toFixed(2)}×` : ''}</span>
+    </div>
+    <div class="legs">
+      <div><b>${esc(c.leg1.carrier ?? '')} ${esc(c.leg1.flightNumber ?? '')}</b>
+        ${esc(c.leg1.departureLocal ?? c.leg1.departureUtc ?? '')} →
+        ${esc(c.leg1.arrivalLocal ?? c.leg1.arrivalUtc ?? '')}</div>
+      <div class="gap">↓ ${hrs} in ${esc(c.gatewayCity ?? c.gateway)}${c.nightsRequired
+        ? ` · ${c.nightsRequired} night${c.nightsRequired > 1 ? 's' : ''}` : ''}</div>
+      <div><b>${esc(c.leg2.carrier ?? '')} ${esc(c.leg2.flightNumber ?? '')}</b>
+        ${esc(c.leg2.departureLocal ?? c.leg2.departureUtc ?? '')} →
+        ${esc(c.leg2.arrivalLocal ?? c.leg2.arrivalUtc ?? '')}</div>
+    </div>
+    <div class="notes">
+      ${notes.map((n) => `<div class="note ${n.kind}">
+        <span class="mk">${n.kind === 'good' ? MARK.good : n.kind === 'warn' ? MARK.warn : MARK.info}</span>
+        <span>${n.text}</span></div>`).join('')}
+    </div>
+  </article>`;
+}
+
+// Results are optional: a 404 means no search has been exported, which is the
+// normal state, not a failure.
+fetch('results.json')
+  .then((r) => (r.ok ? r.json() : null))
+  .then(renderLive)
+  .catch(() => {});
 
 fetch('data.json').then((r) => r.json()).then((data) => {
   NET = createNetwork(data);
