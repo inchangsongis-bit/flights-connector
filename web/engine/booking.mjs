@@ -14,10 +14,14 @@
  *
  * That was the wrong trade. Without it the app could find an itinerary and then
  * only tell the user to go and retype it — which is not finding them a ticket.
- * A fragile link that works today beats a dead end, *provided* the fragility is
- * stated and something stable sits beside it. So: the multi-city link is
- * primary, per-leg searches and the carrier's own site remain as fallbacks, and
- * every link says what it does.
+ *
+ * VERIFIED WORKING 2026-09-15: the link opens Google Flights in multi-city mode
+ * with both legs pre-filled and prices the pair as ONE ticket, surfacing partner
+ * carriers that sell the two segments together more cheaply. That is the
+ * product's central claim, confirmed end to end.
+ *
+ * It remains undocumented and could change, so the per-leg searches and the
+ * carrier's own site stay as fallbacks and the card says so.
  *
  * `tfs` encoding lives in tfs.mjs and is verified against the documented schema.
  */
@@ -88,9 +92,9 @@ export function createBookingLinks(data) {
         url: googleFlightsUrl(legs, { adults: opts.adults ?? 1 }),
         whatItDoes: 'A multi-city search containing both legs, priced as one trip. '
           + 'This is the itinerary, not a component of it.',
-        caveat: 'Google does not publish this URL format, so it may stop working without notice — '
-          + 'the per-leg links below always will.',
-        confidence: 'medium',
+        caveat: 'Verified working. Google does not publish this URL format, so it could change — '
+          + 'the per-leg links below use a stable one.',
+        confidence: 'high',
       };
     } catch {
       return null;

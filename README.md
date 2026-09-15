@@ -94,7 +94,9 @@ P1 is a live schedule feed, which is gated on the P0 probe.
 | **Field mapping confirmed** | **✅** against a real 408-flight board (2026-09-15) |
 | **Live search pipeline** | **✅ `npm run find`** — `src/engine/search.mjs` |
 | Disk cache for quota | Done — `src/adapters/cache.mjs` |
-| Live schedules in the web UI | Next |
+| Live schedules in the web UI | Done — `npm run find -- … --json` |
+| Baggage through-check rules | Done — `data/baggage-rules.json` |
+| **Booking handoff** | **✅ verified** — one click opens both legs in Google Flights, priced as one ticket |
 
 ```bash
 # live search — needs a free RapidAPI key for AeroDataBox

@@ -93,8 +93,11 @@ describe('the multi-city link is the primary handoff', () => {
   });
 
   test('it states its own fragility rather than hiding it', () => {
+    // Verified working in a browser, but still an undocumented format — the card
+    // says both, and points at the stable fallback.
+    assert.match(b.multiCity.caveat, /verified working/i);
     assert.match(b.multiCity.caveat, /does not publish this URL format/i);
-    assert.match(b.multiCity.caveat, /per-leg links below/i, 'and points at the stable fallback');
+    assert.match(b.multiCity.caveat, /per-leg links below/i);
   });
 
   test('the stable fallbacks survive alongside it', () => {

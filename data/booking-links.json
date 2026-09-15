@@ -1,15 +1,5 @@
 {
   "checked_at": "2026-09-15",
-  "why_no_multi_city_deeplink": {
-    "finding": "Neither Google Flights nor Kayak publishes a stable multi-city URL format. Google's tfs parameter is a base64url-encoded protobuf that has been reverse-engineered rather than documented, and Kayak's multi-city path format is not published either.",
-    "decision": "No multi-city deep links are generated. A link that silently stops working at the booking step is worse than no link: the user has already invested in the search by then, and a broken handoff destroys trust in everything upstream of it.",
-    "what_is_offered_instead": [
-      "Per-leg Google Flights links, which use the ordinary user-facing query format and are robust. These confirm the flight exists and show its price, one leg at a time.",
-      "A link to the carrier's own booking site, where the multi-city ticket is actually bought. Not pre-filled, but it is the correct destination and it does not rot.",
-      "The itinerary as copyable text, so filling a multi-city form takes seconds."
-    ],
-    "revisit_if": "A carrier publishes a documented deep-link format, or an affiliate programme provides one with a stability guarantee."
-  },
   "generic": {
     "google_flights": {
       "template": "https://www.google.com/travel/flights?q=Flights%20from%20{origin}%20to%20{destination}%20on%20{date}%20oneway",
@@ -25,26 +15,105 @@
     }
   },
   "carriers": {
-    "NH": { "name": "All Nippon Airways", "booking": "https://www.ana.co.jp/en/us/", "note": "Multiple Stopover Service is booked through ANA's own multi-city flow; a stopover over 24h is where the free first stopover applies." },
-    "JL": { "name": "Japan Airlines", "booking": "https://www.jal.co.jp/en/" },
-    "KE": { "name": "Korean Air", "booking": "https://www.koreanair.com/" },
-    "OZ": { "name": "Asiana Airlines", "booking": "https://flyasiana.com/" },
-    "BR": { "name": "EVA Air", "booking": "https://www.evaair.com/", "note": "No published stopover programme, but multi-city pricing is often at or below the connecting fare — worth pricing directly here." },
-    "CI": { "name": "China Airlines", "booking": "https://www.china-airlines.com/" },
-    "CX": { "name": "Cathay Pacific", "booking": "https://www.cathaypacific.com/" },
-    "SQ": { "name": "Singapore Airlines", "booking": "https://www.singaporeair.com/" },
-    "TK": { "name": "Turkish Airlines", "booking": "https://www.turkishairlines.com/" },
-    "EK": { "name": "Emirates", "booking": "https://www.emirates.com/" },
-    "QR": { "name": "Qatar Airways", "booking": "https://www.qatarairways.com/" },
-    "EY": { "name": "Etihad Airways", "booking": "https://www.etihad.com/" },
-    "ET": { "name": "Ethiopian Airlines", "booking": "https://www.ethiopianairlines.com/" },
-    "FI": { "name": "Icelandair", "booking": "https://www.icelandair.com/", "note": "Its booking engine supports stopovers directly — no multi-city workaround needed." },
-    "TP": { "name": "TAP Air Portugal", "booking": "https://www.flytap.com/", "note": "Portugal Stopover can be added at purchase or later via Manage Booking." },
-    "AY": { "name": "Finnair", "booking": "https://www.finnair.com/" },
-    "CM": { "name": "Copa Airlines", "booking": "https://www.copaair.com/" },
-    "AA": { "name": "American Airlines", "booking": "https://www.aa.com/" },
-    "UA": { "name": "United Airlines", "booking": "https://www.united.com/" },
-    "DL": { "name": "Delta Air Lines", "booking": "https://www.delta.com/" },
-    "AC": { "name": "Air Canada", "booking": "https://www.aircanada.com/" }
+    "NH": {
+      "name": "All Nippon Airways",
+      "booking": "https://www.ana.co.jp/en/us/",
+      "note": "Multiple Stopover Service is booked through ANA's own multi-city flow; a stopover over 24h is where the free first stopover applies."
+    },
+    "JL": {
+      "name": "Japan Airlines",
+      "booking": "https://www.jal.co.jp/en/"
+    },
+    "KE": {
+      "name": "Korean Air",
+      "booking": "https://www.koreanair.com/"
+    },
+    "OZ": {
+      "name": "Asiana Airlines",
+      "booking": "https://flyasiana.com/"
+    },
+    "BR": {
+      "name": "EVA Air",
+      "booking": "https://www.evaair.com/",
+      "note": "No published stopover programme, but multi-city pricing is often at or below the connecting fare — worth pricing directly here."
+    },
+    "CI": {
+      "name": "China Airlines",
+      "booking": "https://www.china-airlines.com/"
+    },
+    "CX": {
+      "name": "Cathay Pacific",
+      "booking": "https://www.cathaypacific.com/"
+    },
+    "SQ": {
+      "name": "Singapore Airlines",
+      "booking": "https://www.singaporeair.com/"
+    },
+    "TK": {
+      "name": "Turkish Airlines",
+      "booking": "https://www.turkishairlines.com/"
+    },
+    "EK": {
+      "name": "Emirates",
+      "booking": "https://www.emirates.com/"
+    },
+    "QR": {
+      "name": "Qatar Airways",
+      "booking": "https://www.qatarairways.com/"
+    },
+    "EY": {
+      "name": "Etihad Airways",
+      "booking": "https://www.etihad.com/"
+    },
+    "ET": {
+      "name": "Ethiopian Airlines",
+      "booking": "https://www.ethiopianairlines.com/"
+    },
+    "FI": {
+      "name": "Icelandair",
+      "booking": "https://www.icelandair.com/",
+      "note": "Its booking engine supports stopovers directly — no multi-city workaround needed."
+    },
+    "TP": {
+      "name": "TAP Air Portugal",
+      "booking": "https://www.flytap.com/",
+      "note": "Portugal Stopover can be added at purchase or later via Manage Booking."
+    },
+    "AY": {
+      "name": "Finnair",
+      "booking": "https://www.finnair.com/"
+    },
+    "CM": {
+      "name": "Copa Airlines",
+      "booking": "https://www.copaair.com/"
+    },
+    "AA": {
+      "name": "American Airlines",
+      "booking": "https://www.aa.com/"
+    },
+    "UA": {
+      "name": "United Airlines",
+      "booking": "https://www.united.com/"
+    },
+    "DL": {
+      "name": "Delta Air Lines",
+      "booking": "https://www.delta.com/"
+    },
+    "AC": {
+      "name": "Air Canada",
+      "booking": "https://www.aircanada.com/"
+    }
+  },
+  "multi_city_deeplink": {
+    "status": "VERIFIED WORKING 2026-09-15",
+    "verification": "Opened in a browser against a real search: Google Flights loads in multi-city mode with both legs pre-filled and prices the pair as ONE ticket, including partner carriers offering the two segments together more cheaply. That is the product's core claim, confirmed end to end.",
+    "format": "Google's tfs parameter — a base64url-encoded protobuf. Encoder in src/engine/tfs.mjs, written against the community-documented schema and verified by decoding its own output with an independent reader rather than by comparing it against itself.",
+    "known_fragility": "Google does not PUBLISH this format, so it can change without notice. That is a reason to keep fallbacks and to say so on the card — it was briefly a reason not to build it at all, which was wrong: without it the app could find an itinerary and then only tell the user to go retype it.",
+    "fallbacks_retained": [
+      "Per-leg Google Flights searches using the ordinary user-facing query format.",
+      "The carrier's own booking site, where a multi-city ticket is bought directly.",
+      "The itinerary as copyable text."
+    ],
+    "if_it_breaks": "Symptom is a blank or single-leg Google Flights search. Re-check the schema, or fall back to the per-leg links, which use a stable format."
   }
 }
