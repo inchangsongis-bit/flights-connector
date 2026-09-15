@@ -1,0 +1,397 @@
+{
+  "checked_at": "2026-09-15",
+  "disclaimer": "ADVISORY ONLY. Entry rules change without notice and vary by passport, purpose, residency and prior travel history. Every row here is a prompt to check the relevant government source, never an authority. Getting this wrong strands someone at a border, so the engine hedges by design: anything not explicitly matched resolves to 'unknown', never to 'fine'.",
+  "why_dates_matter": {
+    "note": "Entry rules are a function of the TRAVEL date, not today's date. Three live examples make this non-optional rather than pedantic:",
+    "examples": [
+      "Korea's K-ETA is temporarily WAIVED for 22 nationalities including the US and Japan through 2026-12-31, and becomes mandatory again from 2027-01-01. A trip in December needs nothing; the same trip in January needs an authorisation.",
+      "ETIAS has slipped repeatedly. As of mid-2026 the EU has removed its target date; a 2027 start is the realistic expectation, with a six-month transition after launch during which it is not a boarding condition.",
+      "Japan's JESTA is legislated for fiscal 2028 with a statutory deadline of 2029-03-31. It is not required for 2026 or 2027 travel."
+    ],
+    "consequence": "Rules carry effective_from / effective_until and are evaluated against the traveller's departure date. A static status field would have quietly given wrong advice to anyone planning across a boundary."
+  },
+  "matching": "Within a country, a rule applies when its nationality list contains the passport AND the travel date falls inside its effective_from/effective_until window. DATE-BOUNDED rules are evaluated before open-ended ones, then array order. That ordering is enforced by the engine, not by how the rules happen to be written here: an open-ended base rule would otherwise permanently shadow a future-dated one sitting below it. If nothing matches, default_status applies.",
+  "groups": {
+    "_note": "Named nationality groups, to keep rules readable. ISO 3166-1 alpha-2.",
+    "anglo": [
+      "US",
+      "CA",
+      "GB",
+      "AU",
+      "NZ",
+      "IE"
+    ],
+    "schengen": [
+      "AT",
+      "BE",
+      "CH",
+      "CZ",
+      "DE",
+      "DK",
+      "EE",
+      "ES",
+      "FI",
+      "FR",
+      "GR",
+      "HU",
+      "IS",
+      "IT",
+      "LT",
+      "LU",
+      "LV",
+      "MT",
+      "NL",
+      "NO",
+      "PL",
+      "PT",
+      "SE",
+      "SI",
+      "SK"
+    ],
+    "east_asia_developed": [
+      "JP",
+      "KR",
+      "SG",
+      "TW",
+      "HK"
+    ]
+  },
+  "countries": {
+    "JP": {
+      "name": "Japan",
+      "rules": [
+        {
+          "status": "visa_free",
+          "max_stay_days": 90,
+          "groups": [
+            "anglo",
+            "schengen"
+          ],
+          "nationalities": [
+            "KR",
+            "TW",
+            "SG",
+            "HK",
+            "MY",
+            "TH",
+            "MX",
+            "BR",
+            "IL",
+            "TR"
+          ],
+          "note": "Japan's short-stay visa exemption covers roughly 70 nationalities. The list here is partial — absence from it means unverified, not ineligible."
+        },
+        {
+          "status": "eta_required",
+          "scheme": "JESTA",
+          "effective_from": "2028-04-01",
+          "groups": [
+            "anglo",
+            "schengen"
+          ],
+          "note": "Legislated for fiscal 2028 with a statutory deadline of 2029-03-31. NOT required for 2026 or 2027 travel. Dated here so the answer changes on its own when the time comes."
+        }
+      ],
+      "default_status": "unknown",
+      "confidence": "medium",
+      "sources": [
+        {
+          "url": "https://visasnews.com/en/japans-parliament-unveils-new-details-on-jesta-the-electronic-travel-authorization-planned-for-2028/",
+          "checked_at": "2026-09-15"
+        }
+      ]
+    },
+    "KR": {
+      "name": "South Korea",
+      "rules": [
+        {
+          "status": "visa_free",
+          "max_stay_days": 90,
+          "effective_until": "2026-12-31",
+          "groups": [
+            "anglo",
+            "schengen"
+          ],
+          "nationalities": [
+            "JP",
+            "TW",
+            "SG",
+            "HK"
+          ],
+          "scheme_waived": "K-ETA",
+          "note": "TEMPORARY K-ETA EXEMPTION. Korea waived K-ETA for 22 nationalities for 'Visit Korea Year', extended through 2026-12-31. Travel on or before that date needs no K-ETA. A K-ETA may still be obtained voluntarily, which exempts you from the paper arrival card."
+        },
+        {
+          "status": "eta_required",
+          "scheme": "K-ETA",
+          "effective_from": "2027-01-01",
+          "max_stay_days": 90,
+          "groups": [
+            "anglo",
+            "schengen"
+          ],
+          "nationalities": [
+            "JP",
+            "TW",
+            "SG",
+            "HK"
+          ],
+          "note": "The temporary exemption lapses 2027-01-01, after which K-ETA is mandatory again — apply before departure."
+        }
+      ],
+      "default_status": "unknown",
+      "confidence": "medium",
+      "sources": [
+        {
+          "url": "https://www.fragomen.com/insights/south-korea-visit-korea-year-temporarily-exempts-22-countries-from-k-eta.html",
+          "checked_at": "2026-09-15"
+        },
+        {
+          "url": "https://atlanta.mofa.go.kr/us-atlanta-en/brd/m_24389/view.do?seq=28",
+          "checked_at": "2026-09-15",
+          "note": "Korean consulate notice of extension"
+        }
+      ]
+    },
+    "TW": {
+      "name": "Taiwan",
+      "rules": [
+        {
+          "status": "visa_free",
+          "max_stay_days": 90,
+          "groups": [
+            "anglo",
+            "schengen"
+          ],
+          "nationalities": [
+            "JP",
+            "KR",
+            "SG",
+            "MY"
+          ],
+          "note": "CONFLICTING SOURCES. Taiwan's long-standing visa-free allowance for these nationalities is 90 days, but one 2026 source describes a 14-day trial window. Treat the duration as unverified and check the Bureau of Consular Affairs before relying on a long stay. The visa-free status itself is not in doubt; the number of days is."
+        }
+      ],
+      "arrival_formalities": [
+        {
+          "name": "Taiwan Arrival Card (TWAC)",
+          "required": true,
+          "when": "before arrival",
+          "cost": "free",
+          "note": "Online arrival card. Not a visa — a separate formality that still has to be completed."
+        }
+      ],
+      "default_status": "unknown",
+      "confidence": "low",
+      "sources": [
+        {
+          "url": "https://www.rtaiwanr.com/blog/taiwan-arrival-card-taiwan-visa",
+          "checked_at": "2026-09-15"
+        }
+      ]
+    },
+    "SG": {
+      "name": "Singapore",
+      "rules": [
+        {
+          "status": "visa_free",
+          "max_stay_days": 90,
+          "groups": [
+            "anglo",
+            "schengen"
+          ],
+          "nationalities": [
+            "JP",
+            "KR",
+            "TW",
+            "HK",
+            "MY",
+            "TH"
+          ],
+          "note": "Short-stay visa exemption. Duration varies by nationality; 90 days is the common allowance for the groups listed."
+        }
+      ],
+      "arrival_formalities": [
+        {
+          "name": "SG Arrival Card",
+          "required": true,
+          "when": "within 3 days before arrival",
+          "cost": "free",
+          "note": "Mandatory digital card including a health declaration. NOT a visa, and easy to overlook precisely because the country is visa-free."
+        }
+      ],
+      "default_status": "unknown",
+      "confidence": "medium",
+      "sources": [
+        {
+          "url": "https://www.ica.gov.sg/enter-transit-depart/entering-singapore/visa_requirements",
+          "checked_at": "2026-09-15",
+          "note": "Singapore ICA, official"
+        }
+      ]
+    },
+    "HK": {
+      "name": "Hong Kong",
+      "rules": [
+        {
+          "status": "visa_free",
+          "max_stay_days": 90,
+          "groups": [
+            "anglo",
+            "schengen"
+          ],
+          "nationalities": [
+            "JP",
+            "KR",
+            "SG",
+            "TW"
+          ],
+          "note": "UNVERIFIED in this pass — no usable source was reached. Hong Kong's visa-free allowances are well established and vary by nationality (commonly 90 or 180 days), but treat this row as a prompt to check Hong Kong Immigration, not as an answer."
+        }
+      ],
+      "default_status": "unknown",
+      "confidence": "low",
+      "sources": []
+    },
+    "AE": {
+      "name": "United Arab Emirates",
+      "rules": [
+        {
+          "status": "visa_on_arrival",
+          "max_stay_days": 30,
+          "groups": [
+            "anglo",
+            "schengen"
+          ],
+          "nationalities": [
+            "JP",
+            "KR",
+            "SG",
+            "CN"
+          ],
+          "note": "UNVERIFIED in this pass. The UAE grants visa-on-arrival or visa-free entry to many nationalities with varying durations. Check before relying on it — particularly relevant here because Dubai is a common long-layover gateway."
+        }
+      ],
+      "default_status": "unknown",
+      "confidence": "low",
+      "sources": []
+    },
+    "QA": {
+      "name": "Qatar",
+      "rules": [],
+      "default_status": "unknown",
+      "confidence": "low",
+      "sources": [],
+      "note": "Not researched. Doha is a major stopover gateway, so this is a known gap worth filling."
+    },
+    "ET": {
+      "name": "Ethiopia",
+      "rules": [],
+      "default_status": "unknown",
+      "confidence": "low",
+      "sources": [],
+      "note": "Not researched. Ethiopia generally requires an e-visa for most nationalities."
+    },
+    "SA": {
+      "name": "Saudi Arabia",
+      "rules": [],
+      "default_status": "unknown",
+      "confidence": "low",
+      "sources": [],
+      "note": "Not researched. Saudi Arabia operates an e-visa scheme for many nationalities."
+    },
+    "BH": {
+      "name": "Bahrain",
+      "rules": [],
+      "default_status": "unknown",
+      "confidence": "low",
+      "sources": [],
+      "note": "Not researched."
+    },
+    "PA": {
+      "name": "Panama",
+      "rules": [],
+      "default_status": "unknown",
+      "confidence": "low",
+      "sources": [],
+      "note": "Not researched."
+    },
+    "IS": {
+      "name": "Iceland",
+      "schengen": true,
+      "rules": [
+        {
+          "status": "visa_free",
+          "max_stay_days": 90,
+          "stay_basis": "90 days in any rolling 180 across the whole Schengen area",
+          "groups": [
+            "anglo",
+            "schengen"
+          ],
+          "nationalities": [
+            "JP",
+            "KR",
+            "SG",
+            "TW",
+            "HK",
+            "BR",
+            "MX",
+            "IL"
+          ],
+          "note": "Schengen. The 90-day allowance is shared across ALL Schengen states, not per country — a common and expensive misunderstanding."
+        },
+        {
+          "status": "eta_required",
+          "scheme": "ETIAS",
+          "cost": {
+            "amount": 20,
+            "currency": "EUR"
+          },
+          "effective_from": "2027-10-01",
+          "groups": [
+            "anglo"
+          ],
+          "nationalities": [
+            "JP",
+            "KR",
+            "SG",
+            "TW",
+            "HK",
+            "BR",
+            "MX",
+            "IL"
+          ],
+          "note": "ETIAS. The EU removed its 2026 target date; 2027 is the realistic expectation and a six-month transition follows launch during which it is not a boarding condition. The effective_from here is an ESTIMATE used to make the rule visible, not an announced date — re-check before trusting it. Exempt under 18 and over 70."
+        }
+      ],
+      "default_status": "unknown",
+      "confidence": "medium",
+      "sources": [
+        {
+          "url": "https://etias.com/articles/etias-drops-2026-date-as-launch-slips-out-of-view",
+          "checked_at": "2026-09-15"
+        }
+      ]
+    },
+    "PT": {
+      "name": "Portugal",
+      "schengen": true,
+      "same_rules_as": "IS",
+      "rules": [],
+      "default_status": "unknown",
+      "confidence": "medium",
+      "sources": [],
+      "note": "Schengen — see IS for the shared rule set including ETIAS."
+    },
+    "FI": {
+      "name": "Finland",
+      "schengen": true,
+      "same_rules_as": "IS",
+      "rules": [],
+      "default_status": "unknown",
+      "confidence": "medium",
+      "sources": [],
+      "note": "Schengen — see IS for the shared rule set including ETIAS."
+    }
+  }
+}

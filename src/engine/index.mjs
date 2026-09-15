@@ -2,3 +2,4 @@
 export * from './time.mjs';
 export * from './layover.mjs';
 export { createNetwork } from './network.mjs';
+export { createEntryRules, ENTRY_SEVERITY } from './entry.mjs';

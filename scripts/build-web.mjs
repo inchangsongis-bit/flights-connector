@@ -24,12 +24,13 @@ import airportsData from '../data/airports.json' with { type: 'json' };
 import routesData from '../data/routes.json' with { type: 'json' };
 import carriersData from '../data/carriers.json' with { type: 'json' };
 import programsData from '../data/stopover-programs.json' with { type: 'json' };
+import entryData from '../data/entry-rules.json' with { type: 'json' };
 
 /** Airports appearing in fewer than this many routes cannot usefully be a gateway. */
 const MIN_DEGREE = 8;
 
 /** The pure modules the browser needs. data-node.mjs stays behind — it reads disk. */
-const ENGINE_FILES = ['time.mjs', 'layover.mjs', 'network.mjs', 'index.mjs'];
+const ENGINE_FILES = ['time.mjs', 'layover.mjs', 'network.mjs', 'entry.mjs', 'index.mjs'];
 
 const kb = (p) => `${(statSync(p).size / 1024).toFixed(0)}KB`;
 
@@ -73,6 +74,7 @@ await writeFile('web/data.json', JSON.stringify({
     routeGraphGeneratedAt: routesData._generated_at,
     routeSource: 'OpenFlights (~2014) — candidate pre-filter only',
     programsCheckedAt: programsData.checked_at,
+    entryCheckedAt: entryData.checked_at,
     airportCount: Object.keys(airports).length,
     routeCount: Object.keys(routes).length,
     minDegree: MIN_DEGREE,
@@ -81,6 +83,7 @@ await writeFile('web/data.json', JSON.stringify({
   routes,
   alliances: carriersData.alliances,
   programs: programsData.carriers,
+  entry: entryData,
 }));
 
 for (const f of ENGINE_FILES) await copyFile(`src/engine/${f}`, `web/engine/${f}`);

@@ -19,13 +19,17 @@
  * real getDepartures(airport, date). Nothing else in the pipeline changes.
  */
 
-import { network, PROGRAMS_CHECKED_AT } from '../src/engine/data-node.mjs';
+import { network, entryRules, PROGRAMS_CHECKED_AT } from '../src/engine/data-node.mjs';
 import { classifyLayover, usableCityHours, describeLayover, formatMinutes, localParts } from '../src/engine/index.mjs';
 
 const { findGateways, airport, ticketability, matchStopoverProgram } = network;
 
 const ORIGIN = process.env.ORIGIN ?? 'SEA';
 const DEST = process.env.DEST ?? 'ICN';
+const PASSPORT = process.env.PASSPORT ?? 'US';
+
+/** alpha-2 for the countries the demo's gateways sit in. */
+const COUNTRY_CODE = { Japan: 'JP', Taiwan: 'TW', China: 'CN', 'South Korea': 'KR', Singapore: 'SG' };
 
 /** Plausible-but-invented schedules, keyed origin-gateway-destination. */
 const FIXTURES = {
@@ -87,6 +91,17 @@ function render(c) {
   console.log(`\n  ticketing   ${tkt.note}`);
   console.log(`  detour      ${g.detourRatio.toFixed(2)}× the nonstop distance`);
   console.log(`  usable      ~${usable.toFixed(1)}h in ${v.city} after immigration, transfers and sleep`);
+
+  // Entry rules are evaluated against the LAYOVER date, not today (see entry.mjs).
+  const layoverDate = fx.leg2.departUtc.slice(0, 10);
+  const cc = COUNTRY_CODE[v.country];
+  if (cc) {
+    const entry = entryRules.evaluate(PASSPORT, cc, layoverDate);
+    const marker = entry.status === 'visa_free' ? '  ★ ' : entry.status === 'unknown' ? '  ⚠ ' : '  · ';
+    console.log(`${marker}${PASSPORT} passport → ${v.country}: ${entryRules.describe(entry)}`);
+    const change = entryRules.upcomingChange(PASSPORT, cc, layoverDate, 180);
+    if (change) console.log(`  ⚠ ${change.text}`);
+  }
 
   if (program) {
     for (const h of program.highlights) {

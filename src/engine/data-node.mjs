@@ -6,9 +6,13 @@ import airportsData from '../../data/airports.json' with { type: 'json' };
 import routesData from '../../data/routes.json' with { type: 'json' };
 import carriersData from '../../data/carriers.json' with { type: 'json' };
 import programsData from '../../data/stopover-programs.json' with { type: 'json' };
+import entryData from '../../data/entry-rules.json' with { type: 'json' };
 import { createNetwork } from './network.mjs';
+import { createEntryRules } from './entry.mjs';
 
 export const PROGRAMS_CHECKED_AT = programsData.checked_at;
+export const ENTRY_CHECKED_AT = entryData.checked_at;
+export const entryRules = createEntryRules(entryData);
 export const ROUTE_GRAPH_GENERATED_AT = routesData._generated_at;
 
 export const network = createNetwork({
