@@ -19,11 +19,10 @@
  * real getDepartures(airport, date). Nothing else in the pipeline changes.
  */
 
-import { findGateways, airport } from '../src/engine/gateways.mjs';
-import { classifyLayover, usableCityHours, describeLayover } from '../src/engine/layover.mjs';
-import { ticketability } from '../src/engine/ticketability.mjs';
-import { matchStopoverProgram, PROGRAMS_CHECKED_AT } from '../src/engine/stopover.mjs';
-import { formatMinutes, localParts } from '../src/engine/time.mjs';
+import { network, PROGRAMS_CHECKED_AT } from '../src/engine/data-node.mjs';
+import { classifyLayover, usableCityHours, describeLayover, formatMinutes, localParts } from '../src/engine/index.mjs';
+
+const { findGateways, airport, ticketability, matchStopoverProgram } = network;
 
 const ORIGIN = process.env.ORIGIN ?? 'SEA';
 const DEST = process.env.DEST ?? 'ICN';

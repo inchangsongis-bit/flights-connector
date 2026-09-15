@@ -1,8 +1,11 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { ticketability } from '../ticketability.mjs';
-import { matchStopoverProgram } from '../stopover.mjs';
+import { network } from '../data-node.mjs';
 import { classifyLayover } from '../layover.mjs';
+
+// One engine, injected with the real committed data. The browser builds the
+// same network from web/data.json, so these tests specify both.
+const { ticketability, matchStopoverProgram } = network;
 
 const jst = (s) => new Date(`${s}:00+09:00`);
 const overnightTokyo = classifyLayover(jst('2026-09-21T16:20'), jst('2026-09-22T09:00'), 'Asia/Tokyo');

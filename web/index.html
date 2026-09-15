@@ -221,254 +221,140 @@ button,input,select{font:inherit;color:inherit}
   </div>
 </div>
 
-<script>
-const F = {
-  amber:'★', warn:'⚠', info:'·',
-};
-let DATA = null, SELECTED = null, LAYOVER_H = 16, ARRIVE_H = 16;
+<script type="module">
+/**
+ * The page imports the REAL engine from web/engine/, built by scripts/build-web.mjs
+ * from src/engine/. It used to carry a hand-written copy of these rules, which
+ * could drift from the Node version silently while the tests covered only one.
+ * If you change a rule, change it in src/engine/ and rebuild.
+ */
+import {
+  createNetwork, classifyLayover, usableCityHours, localParts, formatMinutes,
+} from './engine/index.mjs';
 
-/* ── time, matching src/engine/time.mjs ──────────────────────────── */
-const fmtCache = new Map();
-function dtf(tz){
-  let f = fmtCache.get(tz);
-  if(!f){ f = new Intl.DateTimeFormat('en-US',{timeZone:tz,year:'numeric',month:'2-digit',
-    day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}); fmtCache.set(tz,f); }
-  return f;
-}
-function localParts(instant, tz){
-  const p = {};
-  for(const part of dtf(tz).formatToParts(instant)) if(part.type!=='literal') p[part.type]=part.value;
-  return {date:`${p.year}-${p.month}-${p.day}`, time:`${p.hour}:${p.minute}`, hour:+p.hour};
-}
-/* Build a UTC instant for a wall-clock time in a zone. The local→UTC direction
-   is ambiguous across DST, so guess, measure the offset, correct, re-check. */
-function instantFor(y,mo,d,h,mi,tz){
-  let guess = Date.UTC(y,mo-1,d,h,mi);
-  for(let i=0;i<2;i++){
+const MARK = { good:'\u2605', warn:'\u26a0', info:'\u00b7' };
+let NET = null, META = null, SELECTED = null, LAYOVER_H = 16;
+const ARRIVE_H = 16;          // assumed local arrival time at the gateway
+const DAYS_AHEAD = 28;        // a plausible planning horizon
+
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+
+/**
+ * Build a UTC instant for a wall-clock time in a zone.
+ *
+ * Browser-only: the Node engine receives instants from the schedule feed and
+ * never constructs them. The local->UTC direction is ambiguous across DST (a
+ * wall-clock time can occur twice or not at all), so guess, measure the drift,
+ * correct, and re-check.
+ */
+function instantFor(y, mo, d, h, mi, tz) {
+  let guess = Date.UTC(y, mo - 1, d, h, mi);
+  for (let i = 0; i < 2; i += 1) {
     const p = localParts(new Date(guess), tz);
-    const [py,pm,pd] = p.date.split('-').map(Number);
-    const [ph,pmin] = p.time.split(':').map(Number);
-    const drift = Date.UTC(py,pm-1,pd,ph,pmin) - Date.UTC(y,mo-1,d,h,mi);
-    if(!drift) break;
+    const [py, pm, pd] = p.date.split('-').map(Number);
+    const [ph, pmin] = p.time.split(':').map(Number);
+    const drift = Date.UTC(py, pm - 1, pd, ph, pmin) - Date.UTC(y, mo - 1, d, h, mi);
+    if (!drift) break;
     guess -= drift;
   }
   return new Date(guess);
 }
-function minutesInLocalWindow(from,to,tz,startH,endH,step=15){
-  const total = (to-from)/60000; if(total<=0) return 0;
-  const wraps = endH <= startH; let inside = 0;
-  for(let o=0;o<total;o+=step){
-    const h = localParts(new Date(from.getTime()+o*60000), tz).hour;
-    const hit = wraps ? (h>=startH||h<endH) : (h>=startH&&h<endH);
-    if(hit) inside += Math.min(step,total-o);
-  }
-  return inside;
-}
-const daysBetween=(a,b)=>Math.round((Date.parse(b+'T00:00Z')-Date.parse(a+'T00:00Z'))/864e5);
 
-/* ── layover, matching src/engine/layover.mjs ────────────────────── */
-function classify(arrival, departure, tz){
-  const minutes = (departure-arrival)/60000;
-  if(!(minutes>0)) return {minutes,valid:false};
-  const a = localParts(arrival,tz), d = localParts(departure,tz);
-  const spans = daysBetween(a.date,d.date);
-  const touchesNight = minutesInLocalWindow(arrival,departure,tz,1,5)>0;
-  const isOvernight = minutes>=480 && (spans>0 || touchesNight);
+/** Current dial position, evaluated for one candidate. */
+function stateFor(c) {
+  const now = new Date();
+  const arrival = instantFor(now.getUTCFullYear(), now.getUTCMonth() + 1,
+    now.getUTCDate() + DAYS_AHEAD, ARRIVE_H, 0, c.viaTz);
+  const departure = new Date(arrival.getTime() + LAYOVER_H * 3600000);
   return {
-    minutes, valid:true,
-    cls: minutes>1440 ? 'stopover' : minutes>=360 ? 'long' : 'short',
-    isStopover: minutes > 1440,           // the 24-hour line: MORE than 24h
-    isOvernight, nights: isOvernight ? Math.max(1,spans) : 0,
-    arrivalLocal:a, departureLocal:d,
+    lay: classifyLayover(arrival, departure, c.viaTz),
+    usable: usableCityHours(arrival, departure, c.viaTz),
   };
 }
-function usableCityHours(arrival, departure, tz){
-  const total=(departure-arrival)/60000; if(!(total>0)) return 0;
-  const asleep = minutesInLocalWindow(arrival,departure,tz,23,7);
-  return Math.max(0,(total - asleep - 45 - 120)/60);
-}
 
-/* ── geometry + ticketing, matching the engine ───────────────────── */
-const rad=d=>d*Math.PI/180;
-function distKm(a,b){
-  const A=DATA.airports[a],B=DATA.airports[b]; if(!A||!B) return null;
-  const dLat=rad(B.y-A.y), dLon=rad(B.x-A.x);
-  const h=Math.sin(dLat/2)**2+Math.cos(rad(A.y))*Math.cos(rad(B.y))*Math.sin(dLon/2)**2;
-  return 6371*2*Math.asin(Math.sqrt(h));
-}
-function detour(o,v,d){
-  const direct=distKm(o,d), legs=distKm(o,v)+distKm(v,d);
-  return (!direct||!legs) ? null : legs/direct;
-}
-const ALLIANCE_LABEL={star:'Star Alliance',oneworld:'oneworld',skyteam:'SkyTeam'};
-function ticketability(a,b){
-  if(!a||!b) return {status:'unknown',note:'Carrier unknown on at least one leg.'};
-  if(a===b) return {status:'same',note:'Same carrier — bookable as one multi-city itinerary.'};
-  const x=DATA.alliance[a], y=DATA.alliance[b];
-  if(x&&x===y) return {status:'alliance',
-    note:`Both ${ALLIANCE_LABEL[x]} — usually ticketable together, but not guaranteed.`};
-  return {status:'unknown',
-    note:'Different carriers with no known alliance link. If they will not sell as one ticket this '+
-         'becomes a self-transfer, with no protection if the first flight is late.'};
-}
-
-/* ── gateways ─────────────────────────────────────────────────────── */
-function metroMembers(code){
-  const a=DATA.airports[code];
-  if(a) return a.m ? Object.keys(DATA.airports).filter(k=>DATA.airports[k].m===a.m) : [code];
-  const members=Object.keys(DATA.airports).filter(k=>DATA.airports[k].m===code);
-  return members.length?members:[];
-}
-function findGateways(origin,dest,{onlySame=false,maxDetour=1.5,limit=14}={}){
-  const origins=metroMembers(origin), dests=metroMembers(dest);
-  if(!origins.length||!dests.length) return [];
-  const oM=new Set(origins.map(a=>DATA.airports[a].m||a));
-  const dM=new Set(dests.map(a=>DATA.airports[a].m||a));
-  const out=new Map();
-  for(const from of origins){
-    const prefix=from+'-';
-    for(const key in DATA.routes){
-      if(!key.startsWith(prefix)) continue;
-      const via=key.slice(prefix.length);
-      const viaM=DATA.airports[via]?.m||via;
-      if(oM.has(viaM)||dM.has(viaM)) continue;
-      const inbound=DATA.routes[key];
-      for(const to of dests){
-        const onward=DATA.routes[via+'-'+to]; if(!onward) continue;
-        const dr=detour(from,via,to); if(dr!=null&&dr>maxDetour) continue;
-        const same=inbound.filter(c=>onward.includes(c));
-        if(onlySame&&!same.length) continue;
-        let tkt = same.length ? ticketability(same[0],same[0]) : bestCross(inbound,onward);
-        const progs=Object.keys(DATA.programs).filter(c=>
-          DATA.programs[c].hubs.includes(via) && (same.includes(c)||inbound.includes(c)));
-        const cand={from,via,to,viaM,detour:dr,inbound,onward,same,tkt,progs,
-          city:DATA.airports[via].c,country:DATA.airports[via].k,tz:DATA.airports[via].z};
-        const id=from+'-'+via+'-'+(DATA.airports[to].m||to);
-        const prev=out.get(id);
-        if(prev&&rank(prev)<=rank(cand)) continue;
-        out.set(id,cand);
-      }
-    }
+/** Programme highlights for the carriers that actually fly this gateway. */
+function highlightsFor(c, lay) {
+  const seen = new Set();
+  const out = [];
+  for (const carrier of [...c.sameCarrier, ...c.inboundCarriers]) {
+    if (seen.has(carrier)) continue;
+    seen.add(carrier);
+    const m = NET.matchStopoverProgram(carrier, c.via, lay, true);
+    if (m) out.push(...m.highlights);
   }
-  return [...out.values()].sort((a,b)=>rank(a)-rank(b)).slice(0,limit);
-}
-function bestCross(inb,onw){
-  let best={status:'unknown',note:'No known link between these carriers.'};
-  for(const a of inb) for(const b of onw){
-    const t=ticketability(a,b);
-    if(t.status==='alliance') return t;
-  }
-  return best;
-}
-const SR={same:0,alliance:1,unknown:2};
-const rank=c=>SR[c.tkt.status]*100 + (c.progs.length?-30:0) + (c.detour!=null?(c.detour-1)*40:20);
-
-/* ── entitlements at a given layover length ───────────────────────── */
-function entitlements(cand, layover){
-  const notes=[];
-  for(const code of cand.progs){
-    const p=DATA.programs[code]; const hrs=layover.minutes/60;
-    if(p.fare && p.fare.free>=1){
-      if(layover.isStopover) notes.push({kind:'good',
-        text:`<b>${p.name}: first stopover free per direction</b>${p.fare.fee?`, second ${p.fare.fee.amount} ${p.fare.fee.currency}`:''}. `+
-             `You are past the 24-hour line, so the programme applies.`});
-      else notes.push({kind:'info',
-        text:`Under 24 hours this is a <b>connection, not a stopover</b>, so ${p.name}'s free-stopover `+
-             `programme does not apply — and it costs no fare premium either. Push past 24h to use it.`});
-    } else if(p.fare && p.fare.unofficial && layover.isStopover){
-      notes.push({kind:'info',
-        text:`<b>${p.name} publishes no stopover programme</b>, but multi-city pricing is often at or below `+
-             `the equivalent connecting fare. Worth pricing — no guarantee.`});
-    }
-    if(p.hotel){
-      const meets = p.hotel.min==null || hrs>=p.hotel.min;
-      if(p.hotel.needsNoShorter===true) notes.push({kind:'warn',
-        text:`<b>${p.hotel.prog||'The free hotel'} applies only when no shorter connection exists.</b> `+
-             `Choosing this longer layover will normally disqualify you — budget for the room.`});
-      else if(meets) notes.push({kind:'info',
-        text:`${p.name} may provide a hotel${p.hotel.min?` on layovers over ${p.hotel.min}h`:''}`+
-             `${p.hotel.needsNoShorter==='unknown'?'. May not apply to a stopover you chose — confirm with the carrier.':'. Confirm eligibility.'}`});
-    }
-    if(p.tour){
-      const min=p.tour.min||0, max=p.tour.max??Infinity;
-      if(hrs>=min&&hrs<=max) notes.push({kind:'good',
-        text:`<b>${p.tour.prog||'Free transit tour'}</b> available on layovers of ${min}h and up.`});
-    }
-  }
-  return notes;
+  return out;
 }
 
-/* ── render ───────────────────────────────────────────────────────── */
-const $=id=>document.getElementById(id);
-const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const fmtH=m=>`${Math.floor(m/60)}h ${String(Math.round(m%60)).padStart(2,'0')}m`;
+function render() {
+  const from = $('from').value.trim().toUpperCase();
+  const to = $('to').value.trim().toUpperCase();
+  const onlySameCarrier = $('samecarrier').checked;
+  const board = $('board');
 
-function render(){
-  const from=$('from').value.trim().toUpperCase(), to=$('to').value.trim().toUpperCase();
-  const onlySame=$('samecarrier').checked;
-  const board=$('board');
-
-  if(!DATA.airports[from]&&!metroMembers(from).length || !DATA.airports[to]&&!metroMembers(to).length){
-    board.innerHTML=`<div class="empty"><h3>Unknown airport</h3>
-      Use a three-letter IATA code — <b>SEA</b>, <b>ICN</b>, <b>LHR</b> — or a city code like
-      <b>TYO</b> for all of Tokyo. ${Object.keys(DATA.airports).length} airports are loaded.</div>`;
-    $('count').textContent=''; return;
-  }
-
-  const cands=findGateways(from,to,{onlySame});
-  $('routeTitle').textContent = `${from} → ${to} · stop here`;
-  $('count').textContent = cands.length
-    ? `${cands.length} gateway${cands.length===1?'':'s'} · ranked by ticketing, then programme, then detour`
-    : '';
-
-  if(!cands.length){
-    board.innerHTML=`<div class="empty"><h3>Nothing in between</h3>
-      No gateway in the route graph connects <b>${esc(from)}</b> to <b>${esc(to)}</b> within 1.5× the
-      nonstop distance${onlySame?' on a single carrier':''}.
-      ${onlySame?'Try turning off <b>One carrier only</b> — an alliance partner may still ticket it.':
-      'These two may simply not share a plausible connecting city.'}</div>`;
+  if (!NET.expandToAirports(from).length || !NET.expandToAirports(to).length) {
+    board.innerHTML = `<div class="empty"><h3>Unknown airport</h3>
+      Use a three-letter IATA code &mdash; <b>SEA</b>, <b>ICN</b>, <b>LHR</b> &mdash; or a city code
+      like <b>TYO</b> for all of Tokyo. ${META.airportCount.toLocaleString()} airports are loaded.</div>`;
+    $('count').textContent = '';
     return;
   }
 
-  if(!SELECTED || !cands.some(c=>c.via===SELECTED)) SELECTED = cands[0].via;
+  const cands = NET.findGateways(from, to, { onlySameCarrier, limit: 14 });
+  $('routeTitle').textContent = `${from} \u2192 ${to} \u00b7 stop here`;
+  $('count').textContent = cands.length
+    ? `${cands.length} gateway${cands.length === 1 ? '' : 's'} \u00b7 ranked by ticketing, then programme, then detour`
+    : '';
 
-  board.innerHTML = cands.map(c=>{
-    const open = c.via===SELECTED;
+  if (!cands.length) {
+    board.innerHTML = `<div class="empty"><h3>Nothing in between</h3>
+      No gateway in the route graph connects <b>${esc(from)}</b> to <b>${esc(to)}</b> within
+      1.5&times; the nonstop distance${onlySameCarrier ? ' on a single carrier' : ''}.
+      ${onlySameCarrier
+        ? 'Try turning off <b>One carrier only</b> &mdash; an alliance partner may still ticket it.'
+        : 'These two may simply not share a plausible connecting city.'}</div>`;
+    return;
+  }
+
+  if (!SELECTED || !cands.some((c) => c.via === SELECTED)) SELECTED = cands[0].via;
+
+  board.innerHTML = cands.map((c) => {
+    const open = c.via === SELECTED;
+    const status = c.ticketability.status;
     const tags = [
-      `<span class="chip ${c.tkt.status}">${c.tkt.status==='same'?'one ticket':c.tkt.status==='alliance'?'alliance':'unverified'}</span>`,
-      ...c.progs.map(p=>`<span class="chip prog">${esc(p)} programme</span>`),
+      `<span class="chip ${status}">${status === 'same' ? 'one ticket' : status === 'alliance' ? 'alliance' : 'unverified'}</span>`,
+      ...c.stopoverPrograms.map((p) => `<span class="chip prog">${esc(p)} programme</span>`),
     ].join('');
     return `<button class="row" data-via="${esc(c.via)}" aria-expanded="${open}">
         <span class="code">${esc(c.via)}</span>
         <span class="place">
-          <span class="city">${esc(c.city)}</span>
-          <span class="country">${esc(c.country)}</span>
+          <span class="city">${esc(c.viaCity)}</span>
+          <span class="country">${esc(c.viaCountry ?? '')}</span>
         </span>
-        <span class="detour">${c.detour!=null?c.detour.toFixed(2)+'×':'—'}</span>
+        <span class="detour">${c.detourRatio != null ? `${c.detourRatio.toFixed(2)}\u00d7` : '\u2014'}</span>
         <span class="tags">${tags}</span>
-      </button>${open?detailHtml(c):''}`;
+      </button>${open ? detailHtml(c) : ''}`;
   }).join('');
 
-  board.querySelectorAll('.row').forEach(el=>el.addEventListener('click',()=>{
-    SELECTED = el.dataset.via===SELECTED ? SELECTED : el.dataset.via;
+  board.querySelectorAll('.row').forEach((el) => el.addEventListener('click', () => {
+    SELECTED = el.dataset.via;
     render();
   }));
-  wireDial(cands.find(c=>c.via===SELECTED));
+  wireDial(cands.find((c) => c.via === SELECTED));
 }
 
-function detailHtml(c){
-  const {lay,usable}=stateFor(c);
-  const boundaryPct=(24-2)/(48-2)*100;
-
+function detailHtml(c) {
+  const { lay, usable } = stateFor(c);
+  const boundaryPct = ((24 - 2) / (48 - 2)) * 100;
   return `<div class="detail">
     <div class="dial">
       <div class="dial-top">
         <div>
-          <div class="dial-label">If your layover in ${esc(c.city)} were</div>
+          <div class="dial-label">If your layover in ${esc(c.viaCity)} were</div>
           <div class="dial-val" id="dialVal">${LAYOVER_H}h 00m</div>
         </div>
-        <div class="verdict ${lay.isStopover?'stop':'conn'}" id="dialVerdict">
-          ${lay.isStopover?'Stopover':'Connection'}${lay.isOvernight?` · ${lay.nights} night${lay.nights>1?'s':''}`:''}
+        <div class="verdict ${lay.class === 'stopover' ? 'stop' : 'conn'}" id="dialVerdict">
+          ${verdictText(lay)}
         </div>
       </div>
       <div class="track">
@@ -477,84 +363,87 @@ function detailHtml(c){
                aria-label="Layover length in hours">
         <div class="ticks">
           <span class="tick" style="left:0%">2h</span>
-          <span class="tick" style="left:${(8-2)/46*100}%">8h</span>
-          <span class="tick boundary" style="left:${boundaryPct}%">24h — the stopover line</span>
+          <span class="tick" style="left:${((8 - 2) / 46) * 100}%">8h</span>
+          <span class="tick boundary" style="left:${boundaryPct}%">24h &mdash; the stopover line</span>
           <span class="tick" style="left:100%;transform:translateX(-100%)">48h</span>
         </div>
       </div>
     </div>
-
-    <dl class="readout" id="readout">${readoutHtml(c,lay,usable)}</dl>
-    <div class="notes" id="notesBlock">${notesHtml(c,lay)}</div>
+    <dl class="readout" id="readout">${readoutHtml(c, lay, usable)}</dl>
+    <div class="notes" id="notesBlock">${notesHtml(c, lay)}</div>
   </div>`;
 }
 
-function readoutHtml(c,lay,usable){
-  const dayGap=Math.round((Date.parse(lay.departureLocal.date)-Date.parse(lay.arrivalLocal.date))/864e5);
-  return `<div class="cell"><dt>On the ground</dt><dd>${fmtH(lay.minutes)}</dd></div>
-    <div class="cell"><dt>Arrive / depart</dt><dd>${lay.arrivalLocal.time} → ${lay.departureLocal.time}
-      <small>${dayGap?'+'+dayGap+'d':'same day'}</small></dd></div>
+const verdictText = (lay) => `${lay.class === 'stopover' ? 'Stopover' : 'Connection'}`
+  + (lay.isOvernight ? ` \u00b7 ${lay.nightsRequired} night${lay.nightsRequired > 1 ? 's' : ''}` : '');
+
+function readoutHtml(c, lay, usable) {
+  const dayGap = Math.round(
+    (Date.parse(lay.departureLocal.date) - Date.parse(lay.arrivalLocal.date)) / 864e5,
+  );
+  return `<div class="cell"><dt>On the ground</dt><dd>${formatMinutes(lay.minutes)}</dd></div>
+    <div class="cell"><dt>Arrive / depart</dt><dd>${lay.arrivalLocal.time} \u2192 ${lay.departureLocal.time}
+      <small>${dayGap ? `+${dayGap}d` : 'same day'}</small></dd></div>
     <div class="cell"><dt>Usable in city</dt><dd>${usable.toFixed(1)}h
       <small>after border, transfers, sleep</small></dd></div>
-    <div class="cell"><dt>Detour</dt><dd>${c.detour!=null?c.detour.toFixed(2)+'×':'—'}
+    <div class="cell"><dt>Detour</dt><dd>${c.detourRatio != null ? `${c.detourRatio.toFixed(2)}\u00d7` : '\u2014'}
       <small>vs nonstop</small></dd></div>`;
 }
 
-function notesHtml(c,lay){
-  const carriers = c.same.length
-    ? `<span>both legs:</span> ${c.same.join(' · ')}`
-    : `<span>to ${c.via}:</span> ${c.inbound.slice(0,5).join(' ')} &nbsp; <span>onward:</span> ${c.onward.slice(0,5).join(' ')}`;
-  return `<div class="note ${c.tkt.status==='same'?'good':c.tkt.status==='unknown'?'warn':'info'}">
-      <span class="mk">${c.tkt.status==='same'?F.amber:c.tkt.status==='unknown'?F.warn:F.info}</span>
-      <span>${c.tkt.note}<br><span class="carriers">${carriers}</span></span>
+function notesHtml(c, lay) {
+  const carriers = c.sameCarrier.length
+    ? `<span>both legs:</span> ${c.sameCarrier.join(' \u00b7 ')}`
+    : `<span>to ${c.via}:</span> ${c.inboundCarriers.slice(0, 5).join(' ')} &nbsp; `
+      + `<span>onward:</span> ${c.onwardCarriers.slice(0, 5).join(' ')}`;
+  const status = c.ticketability.status;
+  const kindFor = (k) => (k === 'free_stopover' || k === 'transit_tour' ? 'good'
+    : k === 'hotel_disqualified' ? 'warn' : 'info');
+
+  return `<div class="note ${status === 'same' ? 'good' : status === 'unknown' ? 'warn' : 'info'}">
+      <span class="mk">${status === 'same' ? MARK.good : status === 'unknown' ? MARK.warn : MARK.info}</span>
+      <span>${c.ticketability.note}<br><span class="carriers">${carriers}</span></span>
     </div>
-    ${entitlements(c,lay).map(n=>`<div class="note ${n.kind}">
-      <span class="mk">${n.kind==='good'?F.amber:n.kind==='warn'?F.warn:F.info}</span>
-      <span>${n.text}</span></div>`).join('')}
-    ${lay.isOvernight?`<div class="note info"><span class="mk">${F.info}</span>
-      <span>An overnight means <b>clearing immigration and entering ${esc(c.country)}</b> — transit-without-visa
-      rules will not help. Check you can enter on your passport before counting on this.</span></div>`:''}`;
+    ${highlightsFor(c, lay).map((h) => {
+      const kind = kindFor(h.kind);
+      return `<div class="note ${kind}">
+        <span class="mk">${kind === 'good' ? MARK.good : kind === 'warn' ? MARK.warn : MARK.info}</span>
+        <span>${esc(h.text)}</span></div>`;
+    }).join('')}
+    ${lay.isOvernight ? `<div class="note info"><span class="mk">${MARK.info}</span>
+      <span>An overnight means <b>clearing immigration and entering ${esc(c.viaCountry ?? 'the country')}</b>
+      &mdash; transit-without-visa rules will not help. Check you can enter on your passport
+      before counting on this.</span></div>` : ''}`;
 }
 
-/* Recompute a candidate at the current dial position. */
-function stateFor(c){
-  const now=new Date();
-  const arrival=instantFor(now.getUTCFullYear(),now.getUTCMonth()+1,now.getUTCDate()+28,ARRIVE_H,0,c.tz);
-  const departure=new Date(arrival.getTime()+LAYOVER_H*3600000);
-  const lay=classify(arrival,departure,c.tz);
-  return {lay, usable:usableCityHours(arrival,departure,c.tz)};
-}
-
-/* The dial updates the affected regions in place. Re-rendering the whole board
-   on every input event tore the slider out from under the pointer mid-drag. */
-function wireDial(c){
-  const dial=$('dial'); if(!dial||!c) return;
-  dial.addEventListener('input',e=>{
-    LAYOVER_H=+e.target.value;
-    const {lay,usable}=stateFor(c);
-    $('dialVal').textContent=`${LAYOVER_H}h 00m`;
-    const v=$('dialVerdict');
-    v.className='verdict '+(lay.isStopover?'stop':'conn');
-    v.textContent=(lay.isStopover?'Stopover':'Connection')
-      +(lay.isOvernight?` · ${lay.nights} night${lay.nights>1?'s':''}`:'');
-    $('readout').innerHTML=readoutHtml(c,lay,usable);
-    $('notesBlock').innerHTML=notesHtml(c,lay);
+/** The dial updates the affected regions in place; re-rendering the whole board
+    on every input event tore the slider out from under the pointer mid-drag. */
+function wireDial(c) {
+  const dial = $('dial');
+  if (!dial || !c) return;
+  dial.addEventListener('input', (e) => {
+    LAYOVER_H = Number(e.target.value);
+    const { lay, usable } = stateFor(c);
+    $('dialVal').textContent = `${LAYOVER_H}h 00m`;
+    const v = $('dialVerdict');
+    v.className = `verdict ${lay.class === 'stopover' ? 'stop' : 'conn'}`;
+    v.textContent = verdictText(lay);
+    $('readout').innerHTML = readoutHtml(c, lay, usable);
+    $('notesBlock').innerHTML = notesHtml(c, lay);
   });
 }
 
-/* ── boot ─────────────────────────────────────────────────────────── */
-fetch('data.json').then(r=>r.json()).then(d=>{
-  DATA=d;
-  $('meta').textContent=`${d.meta.airports.toLocaleString()} airports · ${d.meta.routes.toLocaleString()} routes`;
-  $('progDate').textContent=d.meta.programsChecked;
-  const dl=$('airports');
-  dl.innerHTML=Object.entries(d.airports)
-    .map(([k,a])=>`<option value="${k}">${esc(a.c)}, ${esc(a.k)}</option>`).join('');
-  ['from','to'].forEach(id=>$(id).addEventListener('change',()=>{SELECTED=null;render();}));
-  $('samecarrier').addEventListener('change',()=>{SELECTED=null;render();});
+fetch('data.json').then((r) => r.json()).then((data) => {
+  NET = createNetwork(data);
+  META = data.meta;
+  $('meta').textContent = `${META.airportCount.toLocaleString()} airports \u00b7 ${META.routeCount.toLocaleString()} routes`;
+  $('progDate').textContent = META.programsCheckedAt;
+  $('airports').innerHTML = Object.values(data.airports)
+    .map((a) => `<option value="${a.iata}">${esc(a.city)}, ${esc(a.country)}</option>`).join('');
+  ['from', 'to'].forEach((id) => $(id).addEventListener('change', () => { SELECTED = null; render(); }));
+  $('samecarrier').addEventListener('change', () => { SELECTED = null; render(); });
   render();
-}).catch(err=>{
-  $('board').innerHTML=`<div class="empty"><h3>Data did not load</h3>
+}).catch((err) => {
+  $('board').innerHTML = `<div class="empty"><h3>Data did not load</h3>
     The airport and route file could not be fetched. ${esc(err.message)}</div>`;
 });
 </script>

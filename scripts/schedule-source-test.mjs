@@ -78,13 +78,53 @@ async function departures(iata, date, fromHour, toHour) {
     + `&withCargo=false&withPrivate=false&withLocation=false`;
 
   callCount += 1;
-  const res = await fetch(url, { headers: { 'x-rapidapi-key': KEY, 'x-rapidapi-host': HOST } });
+  let res;
+  try {
+    res = await fetch(url, { headers: { 'x-rapidapi-key': KEY, 'x-rapidapi-host': HOST } });
+  } catch (err) {
+    throw new Error(`Network/proxy failure before reaching RapidAPI: ${err.message}. `
+      + 'If you are behind a corporate or sandbox egress proxy, the host may be blocked outright.');
+  }
+
+  const body = await res.text();
 
   if (res.status === 429) throw new Error('Rate limited / quota exhausted (429). Free tier units spent.');
-  if (res.status === 403) throw new Error('403 — key not subscribed to AeroDataBox on RapidAPI.');
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${(await res.text()).slice(0, 200)}`);
 
-  const body = await res.json();
+  // A 403 has two very different causes and they must not be conflated. RapidAPI
+  // answers with a JSON body naming the reason; an egress proxy refusing the
+  // CONNECT returns a 403 with no RapidAPI body at all. Reporting the second as
+  // the first sends you hunting a subscription problem that does not exist.
+  if (res.status === 403) {
+    const looksLikeRapidApi = /message|subscribe|not subscribed|invalid api key/i.test(body);
+    if (!looksLikeRapidApi) {
+      throw new Error('403 with no RapidAPI response body — this is almost certainly an egress '
+        + `proxy or firewall blocking ${HOST}, NOT a problem with your key. `
+        + 'Run this from a machine with unrestricted outbound HTTPS.');
+    }
+    if (/not subscribed|subscribe/i.test(body)) {
+      throw new Error(`403 — this key is not subscribed to AeroDataBox. On RapidAPI you must `
+        + `subscribe to each API individually, even on the free Basic plan. Response: ${body.slice(0, 200)}`);
+    }
+    throw new Error(`403 from RapidAPI: ${body.slice(0, 300)}`);
+  }
+
+  if (res.status === 401) throw new Error(`401 — key rejected. Response: ${body.slice(0, 200)}`);
+  if (res.status === 404) {
+    throw new Error('404 — endpoint path is wrong, not a key problem. The FIDS path in this script '
+      + `is unverified; check doc.aerodatabox.com and correct departures(). Response: ${body.slice(0, 200)}`);
+  }
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${body.slice(0, 200)}`);
+
+  try {
+    return parseDepartures(JSON.parse(body));
+  } catch (err) {
+    throw new Error(`Response was not the expected JSON shape: ${err.message}. `
+      + `First 200 chars: ${body.slice(0, 200)}`);
+  }
+}
+
+function parseDepartures(body) {
+
   return (body.departures ?? []).map((f) => ({
     number: f.number,
     airline: f.airline?.name,

@@ -72,3 +72,25 @@ total layover = itinerary duration − Σ segment durations
 For a one-stop itinerary that is the single layover, exactly, with no timezone lookup at all.
 The real app still needs proper UTC + IANA handling for display and for multi-stop itineraries
 — this shortcut is only enough to answer the acceptance test.
+
+---
+
+## Sandbox note: live API tests must run on your own machine
+
+This repo's Claude Code sessions run behind an egress proxy that **denies outbound HTTPS to
+third-party APIs**. Confirmed blocked: `aerodatabox.p.rapidapi.com`, `developers.amadeus.com`,
+`doc.aerodatabox.com`, `ourairports.com`, `ana.co.jp`. Reachable: `raw.githubusercontent.com`,
+npm, PyPI.
+
+A blocked host answers **403 to the CONNECT**, which surfaces to a client as a plain 403 with no
+response body — easy to misread as an auth failure from the API itself. `schedule-source-test.mjs`
+now tells the two apart and says which it is.
+
+**Consequence:** the engine, the data pipeline and the tests all run fine in-session, but anything
+that touches a live flight API has to be run by you, locally:
+
+```bash
+RAPIDAPI_KEY=... node scripts/schedule-source-test.mjs --probe
+```
+
+Paste the output back and it can be acted on from here.
