@@ -28,7 +28,7 @@
 import { createAeroDataBoxSource } from '../src/adapters/aerodatabox.mjs';
 import { withDiskCache } from '../src/adapters/cache.mjs';
 import { createSearch } from '../src/engine/search.mjs';
-import { network, entryRules, baggageRules, PROGRAMS_CHECKED_AT } from '../src/engine/data-node.mjs';
+import { network, entryRules, baggageRules, bookingLinks, PROGRAMS_CHECKED_AT } from '../src/engine/data-node.mjs';
 import { formatMinutes } from '../src/engine/time.mjs';
 import { toExportPayload } from '../src/engine/serialise.mjs';
 import { writeFile, mkdir } from 'node:fs/promises';
@@ -51,7 +51,7 @@ if (!process.env.RAPIDAPI_KEY) {
 
 const raw = createAeroDataBoxSource({ apiKey: process.env.RAPIDAPI_KEY });
 const source = flags['no-cache'] ? raw : withDiskCache({ source: raw, verbose: true });
-const search = createSearch({ source, network, entryRules, baggageRules });
+const search = createSearch({ source, network, entryRules, baggageRules, bookingLinks });
 
 const O = network.airport(origin);
 const D = network.airport(destination);
@@ -179,7 +179,21 @@ if (!res.candidates.length) {
       }
     }
 
-    console.log(`\n  → Confirm price and availability in ${c.leg1.carrier}'s multi-city search.`);
+    // The handoff. Without it the whole search is a dead end.
+    const bk = c.booking;
+    if (bk) {
+      console.log('');
+      if (bk.carrier) {
+        console.log(`  BOOK   ${bk.carrier.carrierName} multi-city — ${bk.carrier.url}`);
+        if (bk.carrier.note) console.log(`         ${bk.carrier.note}`);
+      }
+      for (const leg of bk.legs) {
+        if (leg.search) console.log(`  CHECK  ${leg.label} ${leg.date} — ${leg.search.url}`);
+      }
+      console.log(`\n  ${bk.caveat}`);
+      console.log('\n  Paste into a multi-city form:');
+      for (const line of bk.itineraryText.split('\n')) console.log(`    ${line}`);
+    }
   }
 }
 

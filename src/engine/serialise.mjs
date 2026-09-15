@@ -62,6 +62,7 @@ export function toExportPayload({ query, result, generatedAt = new Date() }) {
         sources: c.entry.sources ?? [],
       },
       entryChange: c.entryChange && { from: c.entryChange.from, text: c.entryChange.text },
+      booking: c.booking ?? null,
       baggage: c.baggage && {
         status: c.baggage.status,
         text: c.baggage.text,

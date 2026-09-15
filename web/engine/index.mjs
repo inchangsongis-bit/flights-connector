@@ -4,3 +4,4 @@ export * from './layover.mjs';
 export { createNetwork } from './network.mjs';
 export { createEntryRules, ENTRY_SEVERITY } from './entry.mjs';
 export { createBaggageRules } from './baggage.mjs';
+export { createBookingLinks } from './booking.mjs';

@@ -98,7 +98,7 @@ export function addDays(date, n) {
  * @param {object} deps.network        from createNetwork()
  * @param {object} [deps.entryRules]   from createEntryRules()
  */
-export function createSearch({ source, network, entryRules = null, baggageRules = null }) {
+export function createSearch({ source, network, entryRules = null, baggageRules = null, bookingLinks = null }) {
   /**
    * @param {string} origin
    * @param {string} destination
@@ -244,9 +244,13 @@ export function createSearch({ source, network, entryRules = null, baggageRules 
           entry,
           entryChange,
           baggage,
+          booking: null, // filled below, once origin/destination are known on the object
         });
       }
     }
+
+    // Booking links need the finished candidate (origin, gateway, destination).
+    if (bookingLinks) for (const c of candidates) c.booking = bookingLinks.forCandidate(c);
 
     candidates.sort((a, b) => score(a) - score(b));
     return {

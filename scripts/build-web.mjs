@@ -26,12 +26,14 @@ import carriersData from '../data/carriers.json' with { type: 'json' };
 import programsData from '../data/stopover-programs.json' with { type: 'json' };
 import entryData from '../data/entry-rules.json' with { type: 'json' };
 import baggageData from '../data/baggage-rules.json' with { type: 'json' };
+import bookingData from '../data/booking-links.json' with { type: 'json' };
 
 /** Airports appearing in fewer than this many routes cannot usefully be a gateway. */
 const MIN_DEGREE = 8;
 
 /** The pure modules the browser needs. data-node.mjs stays behind — it reads disk. */
-const ENGINE_FILES = ['time.mjs', 'layover.mjs', 'network.mjs', 'entry.mjs', 'baggage.mjs', 'index.mjs'];
+const ENGINE_FILES = ['time.mjs', 'layover.mjs', 'network.mjs', 'entry.mjs', 'baggage.mjs',
+  'booking.mjs', 'index.mjs'];
 
 const kb = (p) => `${(statSync(p).size / 1024).toFixed(0)}KB`;
 
@@ -86,6 +88,7 @@ await writeFile('web/data.json', JSON.stringify({
   programs: programsData.carriers,
   entry: entryData,
   baggage: baggageData,
+  booking: bookingData,
 }));
 
 for (const f of ENGINE_FILES) await copyFile(`src/engine/${f}`, `web/engine/${f}`);
