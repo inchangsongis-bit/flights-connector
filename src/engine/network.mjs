@@ -234,6 +234,15 @@ export function createNetwork(data) {
 
     const originMetros = new Set(origins.map((a) => airports[a]?.metro ?? a));
     const destMetros = new Set(destinations.map((a) => airports[a]?.metro ?? a));
+
+    // Origin and destination in the same city is not a journey with a stopover,
+    // it is a round trip. Without this guard the graph cheerfully returns
+    // SEA → anywhere → SEA, and the detour filter cannot catch it either, since
+    // the nonstop distance is zero and the ratio comes out undefined.
+    if ([...originMetros].every((m) => destMetros.has(m))
+        && [...destMetros].every((m) => originMetros.has(m))) {
+      return [];
+    }
     const candidates = new Map();
 
     for (const from of origins) {

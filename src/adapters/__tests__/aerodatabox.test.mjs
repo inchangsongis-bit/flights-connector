@@ -4,16 +4,25 @@ import {
   parseTimestamp, normaliseFlight, parseDepartures, describeShape, createAeroDataBoxSource,
 } from '../aerodatabox.mjs';
 
-/** The shape the adapter expects. Replace once a real response confirms it. */
+/**
+ * Mirrors a real AeroDataBox departure-board record, confirmed 2026-09-15
+ * against a 408-flight SEA board. Note `arrival` carries BOTH the airport and
+ * the scheduled time — the destination is at arrival.airport.iata, and the
+ * arrival instant the layover calculation depends on is at
+ * arrival.scheduledTime.utc. No terminal field is provided.
+ */
 const SAMPLE = {
   departures: [
     {
       number: 'NH 177',
       airline: { name: 'All Nippon Airways', iata: 'NH' },
-      movement: { airport: { iata: 'NRT', name: 'Tokyo Narita' } },
-      departure: { scheduledTime: { utc: '2026-10-13 20:35Z', local: '2026-10-13 13:35-07:00' }, terminal: 'S' },
-      arrival: { scheduledTime: { utc: '2026-10-14 07:25Z', local: '2026-10-14 16:25+09:00' } },
+      departure: { scheduledTime: { utc: '2026-10-13 20:35Z', local: '2026-10-13 13:35-07:00' } },
+      arrival: {
+        airport: { iata: 'NRT', name: 'Tokyo Narita' },
+        scheduledTime: { utc: '2026-10-14 07:25Z', local: '2026-10-14 16:25+09:00' },
+      },
       aircraft: { model: 'Boeing 787-9' },
+      isCargo: false,
     },
   ],
 };
@@ -45,13 +54,21 @@ describe('normaliseFlight', () => {
     assert.equal(f.carrier, 'NH');
     assert.equal(f.flightNumber, 'NH 177');
     assert.equal(f.destination, 'NRT');
-    assert.equal(f.departureTerminal, 'S');
+    // Confirmed absent from this endpoint across 408 real flights.
+    assert.equal(f.departureTerminal, null);
   });
 
   test('produces real Date instants, not strings', () => {
     assert.ok(f.departureUtc instanceof Date);
     assert.ok(f.arrivalUtc instanceof Date);
     assert.equal((f.arrivalUtc - f.departureUtc) / 60000, 650, '10h50m block time');
+  });
+
+  test('the departure board carries arrival times — the whole overnight calc depends on it', () => {
+    // Confirmed 397/408 on a real SEA board. Without leg-1 arrival there is
+    // nothing to measure a layover from.
+    assert.ok(f.arrivalUtc instanceof Date);
+    assert.equal(typeof f.arrivalLocal, 'string');
   });
 
   test('keeps local strings for display only', () => {
@@ -61,19 +78,21 @@ describe('normaliseFlight', () => {
 
   test('records which candidate path resolved each field', () => {
     assert.equal(f._resolved.carrierIata, 'airline.iata');
-    assert.equal(f._resolved.destinationIata, 'movement.airport.iata');
+    assert.equal(f._resolved.destinationIata, 'arrival.airport.iata');
     assert.equal(f._resolved.departureUtc, 'departure.scheduledTime.utc');
   });
 
   test('falls back through candidate paths when the primary is absent', () => {
+    // The fallback list is why the adapter worked on its first real call: the
+    // destination turned out to live at arrival.airport.iata, not the path
+    // guessed first.
     const g = normaliseFlight({
       number: 'XX 1',
       airline: { icao: 'ANA' },
-      arrival: { airport: { iata: 'HND' } },
-      movement: { scheduledTime: { utc: '2026-10-13 01:00Z' } },
+      movement: { airport: { iata: 'HND' }, scheduledTime: { utc: '2026-10-13 01:00Z' } },
     });
     assert.equal(g.carrier, 'ANA', 'falls back to icao');
-    assert.equal(g.destination, 'HND', 'falls back to arrival.airport.iata');
+    assert.equal(g.destination, 'HND', 'falls back to movement.airport.iata');
     assert.equal(g._resolved.departureUtc, 'movement.scheduledTime.utc');
   });
 
@@ -97,6 +116,12 @@ describe('describeShape', () => {
     const s = describeShape(parseDepartures({ departures: [{ nope: true }] }));
     assert.equal(s.ok, false);
     assert.deepEqual(s.criticalMissing.sort(), ['carrierIata', 'departureUtc', 'destinationIata']);
+  });
+
+  test('a known-absent field is not reported as a surprise', () => {
+    const s = describeShape(parseDepartures(SAMPLE));
+    assert.ok(s.missing.includes('departureTerminal'), 'still recorded as missing');
+    assert.ok(!s.unexpectedMissing.includes('departureTerminal'), 'but not flagged as unexpected');
   });
 
   test('handles an empty board without throwing', () => {

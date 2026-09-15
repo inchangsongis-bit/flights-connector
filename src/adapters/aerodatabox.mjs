@@ -3,18 +3,20 @@
  *
  * Turns an airport departure board into the normalised shape the engine wants.
  *
- * WHY THIS IS DEFENSIVE
- * ─────────────────────
- * AeroDataBox's docs are unreachable from the environment this was written in,
- * so the exact field paths are inferred rather than read. The probe proved the
- * envelope is right (`body.departures` held 443 flights for SEA) but never
- * looked inside a record, so the per-field mapping is still unverified.
+ * FIELD MAPPING CONFIRMED 2026-09-15 against a real 408-flight SEA board.
+ * Confirmed paths are listed first below and marked; the remaining candidates
+ * are kept as fallbacks rather than deleted, since a vendor reshaping its
+ * response should degrade rather than silently produce undefined.
  *
- * Rather than guess once and fail silently on undefined, every field is resolved
- * through a list of candidate paths, and `describeShape()` reports which path
- * actually matched — so one real call settles the mapping instead of a guessing
- * loop. Once the shape is confirmed, the candidate lists can collapse to one
- * entry each; until then, breadth is cheap and silence is expensive.
+ * Two results worth keeping in view:
+ *
+ *  - The destination is at `arrival.airport.iata`, NOT `movement.airport.iata`,
+ *    which was the first guess. The fallback list is the only reason this
+ *    worked on the first real call rather than returning nulls.
+ *  - **Arrival times ARE on the departure board** (397/408). That was the open
+ *    risk: without them there is no leg-1 arrival to measure a layover from, and
+ *    each flight would have needed a second lookup — roughly quadrupling the
+ *    quota cost per search. It holds.
  */
 
 /** Read the first candidate path that yields a non-null value. */
@@ -30,21 +32,31 @@ function pick(obj, paths) {
   return { value: null, path: null };
 }
 
-/** Candidate paths per field, most likely first. */
+/**
+ * Candidate paths per field. ✓ marks a path confirmed against a real response
+ * on 2026-09-15; the rest are fallbacks.
+ */
 const FIELDS = {
-  flightNumber: ['number', 'flight.number', 'callSign'],
-  carrierIata: ['airline.iata', 'airline.icao', 'airline.name'],
-  carrierName: ['airline.name'],
-  destinationIata: ['movement.airport.iata', 'arrival.airport.iata', 'movement.airport.iataCode'],
-  destinationName: ['movement.airport.name', 'arrival.airport.name'],
-  departureUtc: ['departure.scheduledTime.utc', 'movement.scheduledTime.utc', 'scheduledTime.utc'],
-  departureLocal: ['departure.scheduledTime.local', 'movement.scheduledTime.local', 'scheduledTime.local'],
-  arrivalUtc: ['arrival.scheduledTime.utc', 'movement.revisedTime.utc'],
-  arrivalLocal: ['arrival.scheduledTime.local'],
+  flightNumber: ['number' /* ✓ */, 'flight.number', 'callSign'],
+  carrierIata: ['airline.iata' /* ✓ */, 'airline.icao', 'airline.name'],
+  carrierName: ['airline.name' /* ✓ */],
+  destinationIata: ['arrival.airport.iata' /* ✓ */, 'movement.airport.iata', 'movement.airport.iataCode'],
+  destinationName: ['arrival.airport.name' /* ✓ */, 'movement.airport.name'],
+  departureUtc: ['departure.scheduledTime.utc' /* ✓ */, 'movement.scheduledTime.utc', 'scheduledTime.utc'],
+  departureLocal: ['departure.scheduledTime.local' /* ✓ */, 'movement.scheduledTime.local', 'scheduledTime.local'],
+  arrivalUtc: ['arrival.scheduledTime.utc' /* ✓ */, 'movement.revisedTime.utc'],
+  arrivalLocal: ['arrival.scheduledTime.local' /* ✓ */],
+  // NOT PROVIDED by this endpoint — every candidate resolved to nothing across
+  // 408 flights. Terminal-change detection (FR-13/FR-17) will need another
+  // source, so it stays a P4 concern rather than something to fake here.
   departureTerminal: ['departure.terminal', 'movement.terminal'],
-  aircraft: ['aircraft.model'],
-  isCargo: ['isCargo'],
+  aircraft: ['aircraft.model' /* ✓ */],
+  isCargo: ['isCargo' /* ✓ */],
 };
+
+/** Confirmed against a live response; used by the shape report. */
+export const MAPPING_CONFIRMED_AT = '2026-09-15';
+export const UNAVAILABLE_FIELDS = ['departureTerminal'];
 
 /**
  * AeroDataBox renders instants as "2026-10-13 15:20+09:00" — a space where
@@ -108,11 +120,14 @@ export function describeShape(flights) {
   // Fields without which the engine cannot do its job at all.
   const CRITICAL = ['carrierIata', 'destinationIata', 'departureUtc'];
   const criticalMissing = CRITICAL.filter((f) => missing.includes(f));
+  // Known-absent fields are not news; don't report them as a surprise.
+  const unexpectedMissing = missing.filter((f) => !UNAVAILABLE_FIELDS.includes(f));
 
   return {
     ok: criticalMissing.length === 0,
     chosen,
     missing,
+    unexpectedMissing,
     criticalMissing,
     coverage: {
       withCarrier: flights.filter((f) => f.carrier).length,

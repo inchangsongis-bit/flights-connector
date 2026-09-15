@@ -135,3 +135,27 @@ describe('the 24-hour stopover boundary', () => {
     assert.ok(!short?.highlights.some((h) => h.kind === 'unofficial'));
   });
 });
+
+describe('findGateways input guards', () => {
+  const { findGateways } = network;
+
+  test('the same city as origin and destination is not a journey', () => {
+    // Without the guard this returns SEA → anywhere → SEA round trips, and the
+    // detour filter cannot catch them because the nonstop distance is zero.
+    assert.deepEqual(findGateways('SEA', 'SEA'), []);
+  });
+
+  test('metro codes collapse to the same city too', () => {
+    assert.deepEqual(findGateways('HND', 'TYO'), []);
+    assert.deepEqual(findGateways('TYO', 'NRT'), []);
+  });
+
+  test('an unknown airport returns nothing rather than throwing', () => {
+    assert.deepEqual(findGateways('ZZZ', 'ICN'), []);
+    assert.deepEqual(findGateways('SEA', 'ZZZ'), []);
+  });
+
+  test('a real pair still works', () => {
+    assert.ok(findGateways('SEA', 'ICN').length > 0);
+  });
+});

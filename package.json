@@ -13,6 +13,7 @@
     "build:data": "node scripts/build-reference-data.mjs",
     "demo": "node scripts/demo.mjs",
     "check": "npm run validate:data && npm test",
-    "build:web": "node scripts/build-web.mjs"
+    "build:web": "node scripts/build-web.mjs",
+    "find": "node scripts/find.mjs"
   }
 }

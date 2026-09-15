@@ -91,15 +91,31 @@ P1 is a live schedule feed, which is gated on the P0 probe.
 | Entry / visa rules, date-aware | Done — `data/entry-rules.json`, `src/engine/entry.mjs` |
 | UI — Layover Board | Done — `web/`, published |
 | **Schedule source proven** | **✅ AeroDataBox reaches +90 days** (2026-09-15) |
-| Schedule adapter | Written — `src/adapters/aerodatabox.mjs`, field mapping pending one `--shape` run |
-| Live schedules in the engine | Next |
+| **Field mapping confirmed** | **✅** against a real 408-flight board (2026-09-15) |
+| **Live search pipeline** | **✅ `npm run find`** — `src/engine/search.mjs` |
+| Disk cache for quota | Done — `src/adapters/cache.mjs` |
+| Live schedules in the web UI | Next |
 
 ```bash
-npm run demo       # end-to-end pipeline on fixture schedules
-npm test           # 32 tests
+# live search — needs a free RapidAPI key for AeroDataBox
+RAPIDAPI_KEY=... npm run find -- SEA ICN 2026-10-13
+RAPIDAPI_KEY=... npm run find -- SEA ICN 2026-10-13 --passport=GB --same-carrier
+
+npm test           # 89 tests, no network
+npm run demo       # the pipeline on fixture schedules, no key needed
 npm run check      # validate data + test
 npm run build:data # refresh reference data from OpenFlights
+npm run build:web  # regenerate web/ from src/engine and data/
 ```
+
+### Quota
+
+The free AeroDataBox tier is ~600 units/month. Two things keep a search cheap:
+
+1. **The offline route graph filters first.** A search costs `1 + gateways reached` calls, not
+   one per candidate city — and a route the graph rules out costs **zero**.
+2. **Boards are cached to disk** per `(airport, date, window)`. A board for SEA on a given day
+   is identical for every route through it, so repeat searches are free.
 
 The demo runs the real engine, the real route graph and the real curated data against
 **invented** flight times. Swapping `getDeparturesFixture()` for a live
