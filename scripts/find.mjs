@@ -9,7 +9,9 @@
  *   --passport=XX     ISO alpha-2, default US — drives the entry/visa check
  *   --same-carrier    only routings one airline can ticket end to end
  *   --min=8 --max=36  layover band in hours
- *   --gateways=4      how many connection cities to price (each costs API calls)
+ *   --gateways=3      how many connection cities to price (each costs API calls)
+ *   --budget=24       refuse to start a search costing more than this many calls
+ *   --dry-run         show the fetch plan and its cost without spending it
  *   --limit=6         how many candidates to print
  *   --window=6-18     narrow the day to one 12h window (halves quota, misses evening flights)
  *   --no-cache        bypass the disk cache
@@ -65,7 +67,11 @@ try {
     onlySameCarrier: Boolean(flags['same-carrier']),
     minLayoverHours: Number(flags.min ?? 8),
     maxLayoverHours: Number(flags.max ?? 36),
-    maxGateways: Number(flags.gateways ?? 4),
+    maxGateways: Number(flags.gateways ?? 3),
+    maxApiCalls: Number(flags.budget ?? 24),
+    dryRun: Boolean(flags['dry-run']),
+    onPlan: (b) => console.log(`\n  Plan: ${b.estimate} API call(s) across `
+      + `${b.gatewaysPlanned} gateway(s) — ${b.spentSoFar} already spent on the origin board.`),
     ...(flags.window
       ? { windows: [flags.window.split('-').map(Number)] }
       : {}),
@@ -92,14 +98,30 @@ for (const g of res.gateways) {
 }
 
 if (!res.candidates.length) {
-  const why = {
-    'no-gateways': 'No connection city in the route graph links these two within 1.5× the nonstop distance.',
-    'no-outbound-flights': 'No flights from the origin to any candidate gateway in the search window, '
-      + 'or they carry no arrival times. Try widening the window or another date.',
-    'no-pairings-in-window': 'Flights exist on both legs, but no pairing falls inside the layover band. '
-      + 'Try --min / --max, or the next day.',
-  }[res.reason] ?? 'No candidates.';
-  console.log(`\nNothing found. ${why}`);
+  if (res.reason === 'over-budget') {
+    const b = res.budget;
+    console.log(`\nStopped before spending: this search needs ${b.estimate} API calls, over the `
+      + `${b.limit} budget (${b.spentSoFar} already spent on the origin board).`);
+    console.log('Cheapest levers, in order:');
+    console.log(`  --max=24        a narrower layover band spans fewer daily boards`);
+    console.log(`  --gateways=2    fewer connection cities`);
+    console.log(`  --window=6-18   one window per day instead of two (misses evening flights)`);
+    console.log(`  --budget=${b.estimate}      accept the cost`);
+  } else if (res.reason === 'dry-run') {
+    console.log(`\nPlan only — ${res.budget.estimate} call(s) would be needed:`);
+    for (const p of res.plan) {
+      console.log(`  ${p.gateway}: ${p.boards.join(', ')}`);
+    }
+  } else {
+    const why = {
+      'no-gateways': 'No connection city in the route graph links these two within 1.5× the nonstop distance.',
+      'no-outbound-flights': 'No flights from the origin to any candidate gateway in the search window, '
+        + 'or they carry no arrival times. Try widening the window or another date.',
+      'no-pairings-in-window': 'Flights exist on both legs, but no pairing falls inside the layover band. '
+        + 'Try --min / --max, or the next day.',
+    }[res.reason] ?? 'No candidates.';
+    console.log(`\nNothing found. ${why}`);
+  }
 } else {
   const limit = Number(flags.limit ?? 6);
   const shown = res.candidates.slice(0, limit);

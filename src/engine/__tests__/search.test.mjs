@@ -320,3 +320,90 @@ describe('the date line', () => {
     assert.equal(candidates[0].layover.minutes, 16 * 60 + 35);
   });
 });
+
+describe('API budget', () => {
+  const lateArrival = {
+    'SEA_2026-10-13': [flight('NH', 'NH 177', 'NRT', '2026-10-13T20:35:00Z', '2026-10-14T07:25:00Z')],
+  };
+
+  test('boards that cannot hold a qualifying flight are not fetched', async () => {
+    // Landing 16:25 Tokyo with an 8h minimum, nothing before 00:25 the next day
+    // can qualify — so the whole arrival-day board, two calls, was waste.
+    const asked = [];
+    const source = {
+      async getDepartures(airport, date, { fromHour, toHour }) {
+        asked.push(`${airport} ${date} ${fromHour}-${toHour}`);
+        return (lateArrival[`${airport}_${date}`] ?? []).map((f) => ({
+          ...f, departureUtc: new Date(f.departureUtc), arrivalUtc: new Date(f.arrivalUtc),
+        }));
+      },
+    };
+    const search = createSearch({ source, network, entryRules });
+    await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13',
+      { maxGateways: 1, maxApiCalls: 99 });
+
+    assert.ok(!asked.some((a) => a.startsWith('NRT 2026-10-14')),
+      `the arrival-day board cannot qualify and must not be fetched; asked: ${asked.join(' | ')}`);
+    assert.ok(asked.some((a) => a.startsWith('NRT 2026-10-15')), 'the next day must be fetched');
+  });
+
+  test('a narrower layover band costs fewer calls', async () => {
+    const count = async (opts) => {
+      let n = 0;
+      const source = {
+        async getDepartures(airport, date) {
+          n += 1;
+          return (lateArrival[`${airport}_${date}`] ?? []).map((f) => ({
+            ...f, departureUtc: new Date(f.departureUtc), arrivalUtc: new Date(f.arrivalUtc),
+          }));
+        },
+      };
+      const search = createSearch({ source, network, entryRules });
+      await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13',
+        { maxGateways: 1, maxApiCalls: 99, ...opts });
+      return n;
+    };
+    const wide = await count({ minLayoverHours: 8, maxLayoverHours: 36 });
+    const narrow = await count({ minLayoverHours: 10, maxLayoverHours: 20 });
+    assert.ok(narrow < wide, `narrow (${narrow}) should cost less than wide (${wide})`);
+  });
+
+  test('the guard stops before the expensive half, not after it', async () => {
+    let n = 0;
+    const source = {
+      async getDepartures(airport, date) {
+        n += 1;
+        return (lateArrival[`${airport}_${date}`] ?? []).map((f) => ({
+          ...f, departureUtc: new Date(f.departureUtc), arrivalUtc: new Date(f.arrivalUtc),
+        }));
+      },
+    };
+    const search = createSearch({ source, network, entryRules });
+    const res = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13',
+      { maxGateways: 3, maxApiCalls: 3 });
+
+    assert.equal(res.reason, 'over-budget');
+    assert.equal(n, 2, 'only the origin board is spent before stopping');
+    assert.ok(res.budget.estimate > res.budget.limit);
+    assert.equal(res.budget.spentSoFar, 2);
+  });
+
+  test('a dry run reports the plan and spends nothing beyond the origin board', async () => {
+    let n = 0;
+    const source = {
+      async getDepartures(airport, date) {
+        n += 1;
+        return (lateArrival[`${airport}_${date}`] ?? []).map((f) => ({
+          ...f, departureUtc: new Date(f.departureUtc), arrivalUtc: new Date(f.arrivalUtc),
+        }));
+      },
+    };
+    const search = createSearch({ source, network, entryRules });
+    const res = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13',
+      { maxGateways: 1, maxApiCalls: 99, dryRun: true });
+
+    assert.equal(res.reason, 'dry-run');
+    assert.equal(n, 2, 'nothing beyond the origin board');
+    assert.ok(res.plan[0].boards.length > 0, 'the plan names the boards it would fetch');
+  });
+});

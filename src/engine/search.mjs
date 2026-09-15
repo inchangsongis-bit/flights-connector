@@ -15,31 +15,61 @@
  */
 
 import { classifyLayover, usableCityHours } from './layover.mjs';
-import { localDate } from './time.mjs';
+import { localDate, localParts } from './time.mjs';
 
 /**
- * A whole day's departures, across however many windows the vendor's per-request
- * cap requires. Windows are half-open — [0,12) then [12,24) — but a vendor may
- * still return a boundary flight twice, so results are deduped on flight number
- * plus departure instant rather than trusted to be disjoint.
+ * Exactly the (date, window) boards that could hold a qualifying leg-2 departure.
+ *
+ * Fetching the arrival day and the next in full was wasteful in a way that
+ * matters on a metered tier: a flight landing at 16:25 with an 8-hour minimum
+ * layover cannot pair with anything until 00:25 the following day, so the whole
+ * arrival-day board — two calls — was guaranteed to contain nothing.
+ *
+ * The usable leg-2 departures lie in [arrival + min, arrival + max]. Rather than
+ * convert those bounds back to local wall-clock — the direction that is
+ * ambiguous across DST — walk the interval and record which local (date, window)
+ * each sampled instant lands in. Sampling has no DST failure mode, and a
+ * half-hour step cannot skip a 12-hour window.
  */
+function boardsNeeded(arrival, tz, windows, minHours, maxHours, stepMinutes = 30) {
+  const needed = new Set();
+  const from = arrival.getTime() + minHours * 3600000;
+  const to = arrival.getTime() + maxHours * 3600000;
+  for (let t = from; t <= to + stepMinutes * 60000; t += stepMinutes * 60000) {
+    const p = localParts(new Date(Math.min(t, to)), tz);
+    for (let i = 0; i < windows.length; i += 1) {
+      const [fromHour, toHour] = windows[i];
+      if (p.hour >= fromHour && p.hour < Math.min(toHour, 24)) needed.add(`${p.date}|${i}`);
+    }
+    if (t >= to) break;
+  }
+  return [...needed].map((k) => {
+    const [date, i] = k.split('|');
+    return { date, window: windows[Number(i)] };
+  });
+}
+
+/** One board, deduped — a vendor may return a boundary flight in two windows. */
+async function fetchBoard(source, airport, date, window, seen, out) {
+  const [fromHour, toHour] = window;
+  const flights = await source.getDepartures(airport, date, { fromHour, toHour });
+  for (const f of flights) {
+    const key = `${f.flightNumber}@${f.departureUtc?.getTime() ?? '?'}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(f);
+  }
+}
+
 async function fetchDay(source, airport, date, windows) {
   const seen = new Set();
   const out = [];
-  for (const [fromHour, toHour] of windows) {
-    const flights = await source.getDepartures(airport, date, { fromHour, toHour });
-    for (const f of flights) {
-      const key = `${f.flightNumber}@${f.departureUtc?.getTime() ?? '?'}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(f);
-    }
-  }
+  for (const window of windows) await fetchBoard(source, airport, date, window, seen, out);
   return out;
 }
 
 const DEFAULT = {
-  maxGateways: 4,
+  maxGateways: 3,
   minLayoverHours: 8,
   maxLayoverHours: 36,
   // FULL DAY by default. AeroDataBox caps a request at 12 hours, so a whole day
@@ -51,6 +81,8 @@ const DEFAULT = {
   windows: [[0, 12], [12, 24]],
   onlySameCarrier: false,
   passport: 'US',
+  /** Refuse to start a search that would cost more than this many calls. */
+  maxApiCalls: 24,
 };
 
 /** 'YYYY-MM-DD' plus n days, without touching local time. */
@@ -96,33 +128,51 @@ export function createSearch({ source, network, entryRules = null, baggageRules 
       return { candidates: [], gateways, reason: 'no-outbound-flights', apiCalls: perDay };
     }
 
-    // Which gateway boards to fetch, derived from each leg's LOCAL ARRIVAL DATE
-    // at the gateway — not from the origin's departure date.
+    // Which gateway boards to fetch, derived from each leg's actual arrival
+    // instant and the layover band — not from the origin's departure date.
     //
-    // Crossing the date line breaks the naive version: SEA→NRT leaves on the
-    // 13th in Seattle and lands on the 14th in Tokyo, so the next-morning
-    // departure sits on the 15th's board. Keying off the departure date fetched
-    // the 13th and 14th and silently missed every Tokyo overnight — precisely
-    // the routing this tool exists to find. It only appeared to work for
-    // Vancouver, where no date line is involved.
-    const needed = new Map(); // gateway -> Set of local board dates
+    // Two things go wrong with the naive version. Crossing the date line breaks
+    // it outright: SEA→NRT leaves on the 13th in Seattle and lands on the 14th
+    // in Tokyo, so the next-morning departure sits on the 15th's board. And
+    // fetching whole days wastes calls on boards that cannot hold a qualifying
+    // flight at all.
+    const plan = new Map(); // gateway -> Map of "date|windowIndex" -> {date, window}
     for (const f of outbound) {
       const gateway = gateways.find((g) => g.via === f.destination);
       if (!gateway?.viaTz) continue;
-      const arrivalDate = localDate(f.arrivalUtc, gateway.viaTz);
-      const dates = needed.get(f.destination) ?? new Set();
-      dates.add(arrivalDate);              // a late-evening landing can pair pre-midnight
-      dates.add(addDays(arrivalDate, 1));  // and the next morning, the usual case
-      needed.set(f.destination, dates);
+      const boards = boardsNeeded(f.arrivalUtc, gateway.viaTz, opt.windows,
+        opt.minLayoverHours, opt.maxLayoverHours);
+      const forGateway = plan.get(f.destination) ?? new Map();
+      for (const b of boards) forGateway.set(`${b.date}|${b.window.join('-')}`, b);
+      plan.set(f.destination, forGateway);
+    }
+
+    const plannedFetches = [...plan.values()].reduce((n, m) => n + m.size, 0);
+    const estimate = perDay + plannedFetches;
+    const budget = { estimate, limit: opt.maxApiCalls, gatewaysPlanned: plan.size, spentSoFar: perDay };
+
+    // The plan is only knowable after the origin board, so the guard runs here
+    // rather than up front. Stopping with two calls spent beats discovering the
+    // cost after twenty.
+    if (estimate > opt.maxApiCalls) {
+      return { candidates: [], gateways, reason: 'over-budget', apiCalls: perDay, budget };
+    }
+    if (opt.onPlan) opt.onPlan(budget);
+    if (opt.dryRun) {
+      return { candidates: [], gateways, reason: 'dry-run', apiCalls: perDay, budget,
+        plan: [...plan.entries()].map(([gw, boards]) => ({
+          gateway: gw, boards: [...boards.values()].map((b) => `${b.date} ${b.window.join('-')}`),
+        })) };
     }
 
     const onwardByGateway = new Map();
     let onwardFetches = 0;
-    for (const [gw, dates] of needed) {
+    for (const [gw, boards] of plan) {
+      const seen = new Set();
       const flights = [];
-      for (const d of [...dates].sort()) {
-        onwardFetches += opt.windows.length;
-        flights.push(...await fetchDay(source, gw, d, opt.windows));
+      for (const { date: d, window } of [...boards.values()].sort((a, b) => a.date.localeCompare(b.date))) {
+        onwardFetches += 1;
+        await fetchBoard(source, gw, d, window, seen, flights);
       }
       onwardByGateway.set(gw, flights.filter((f) => f.destination === destination && f.departureUtc));
     }
@@ -204,6 +254,7 @@ export function createSearch({ source, network, entryRules = null, baggageRules 
       gateways,
       reason: candidates.length ? null : 'no-pairings-in-window',
       apiCalls: perDay + onwardFetches,
+      budget,
     };
   }
 

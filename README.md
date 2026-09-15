@@ -110,12 +110,26 @@ npm run build:web  # regenerate web/ from src/engine and data/
 
 ### Quota
 
-The free AeroDataBox tier is ~600 units/month. Two things keep a search cheap:
+The free AeroDataBox tier is ~600 units/month and each call costs several, so cost control is
+a design constraint rather than an optimisation. Four things:
 
-1. **The offline route graph filters first.** A search costs `1 + gateways reached` calls, not
-   one per candidate city — and a route the graph rules out costs **zero**.
-2. **Boards are cached to disk** per `(airport, date, window)`. A board for SEA on a given day
-   is identical for every route through it, so repeat searches are free.
+1. **The offline route graph filters first.** A route it rules out costs **zero** calls.
+2. **Only boards that can hold a qualifying flight are fetched.** A leg landing at 16:25 with an
+   8-hour minimum cannot pair with anything until 00:25 the next day, so the arrival-day board
+   is skipped entirely.
+3. **A budget guard**, default 24 calls. The plan is only knowable after the origin board, so it
+   stops with two calls spent rather than discovering the cost after twenty.
+4. **Boards cache to disk** per `(airport, date, window)` — a SEA board is identical for every
+   route through it, so repeat searches are free.
+
+See the cost before paying it:
+
+```bash
+npm run find -- SEA ICN 2026-10-13 --dry-run
+```
+
+The layover band is the biggest lever: a 28-hour span crosses three daily boards, a 10-hour span
+usually one or two. `--max=24` is meaningfully cheaper than the default `--max=36`.
 
 The demo runs the real engine, the real route graph and the real curated data against
 **invented** flight times. Swapping `getDeparturesFixture()` for a live
