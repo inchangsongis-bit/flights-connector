@@ -1,0 +1,29 @@
+{
+  "checked_at": "2026-09-15",
+  "disclaimer": "ADVISORY ONLY. Through-check policy varies by carrier, by airport, by whether the itinerary is interline, and by what is in the bag. Every row is a prompt to confirm at check-in, not an authority. Where a value is unknown the engine says so rather than assuming the traveller's bag will follow them.",
+  "the_24_hour_line_again": {
+    "finding": "The same 24-hour boundary that separates a stopover from a connection also governs baggage on most carriers. ANA states it directly: baggage is checked through only on a same-day connection, and under 24 hours it should reach the final destination. The general interline convention matches — beyond 24 hours on an international itinerary the break is a stopover, and the traveller collects and re-checks.",
+    "why_that_is_good_news": "The app's 8-24h overnight sweet spot sits UNDER the line on most carriers, so bags are normally through-checked. The traveller walks into the city with a daypack rather than a suitcase.",
+    "the_trap": "US carriers cap it far lower than 24 hours — American around 12 (raised to roughly 16.5 on American and American-to-partner itineraries) and United around 12. A 16-hour layover is comfortably inside ANA's limit and outside United's. That difference is invisible unless the app says so.",
+    "second_trap": "Korean customs require passengers arriving on an international flight to collect baggage at their first point of entry in Korea and clear customs, regardless of through-check status. An overnight in Seoul means handling the bag whatever the tag says."
+  },
+  "default_assumption": "unknown",
+  "carriers": {
+    "NH": { "name": "All Nippon Airways", "max_hours": 24, "confidence": "medium", "note": "Baggage checked through only on a same-day connection; under 24h it should reach the final destination.", "sources": [{ "url": "https://ana-support.my.site.com/enjp/s/article/answers000023028en", "checked_at": "2026-09-15" }] },
+    "JL": { "name": "Japan Airlines", "max_hours": 24, "confidence": "low", "note": "Through-checks to the destination, with exceptions for fragile items, sports equipment, instruments, pets and high-value baggage, which must be collected and re-checked. The 24h figure is the industry convention rather than a quoted JAL limit.", "sources": [{ "url": "https://www.jal.co.jp/jp/en/dom/boarding/onto/", "checked_at": "2026-09-15" }] },
+    "KE": { "name": "Korean Air", "max_hours": 24, "confidence": "low", "note": "Reported working on a 13h ICN layover on a single reservation. See the Korean customs note — an overnight in Korea means collecting the bag regardless.", "sources": [{ "url": "https://www.flyertalk.com/forum/korean-air-skypass/2190053-long-layover-icn.html", "checked_at": "2026-09-15" }] },
+    "OZ": { "name": "Asiana Airlines", "max_hours": 24, "confidence": "low", "note": "Korean customs require collection at the first point of entry in Korea.", "sources": [{ "url": "https://flyasiana.com/C/ID/EN/contents/transit-baggage", "checked_at": "2026-09-15" }] },
+    "BR": { "name": "EVA Air", "max_hours": 24, "confidence": "low", "note": "On a stopover, the baggage policy of the most significant operating carrier applies per sector.", "sources": [{ "url": "https://www.evaair.com/en-us/fly-prepare/baggage/free-baggage/checked-baggage/", "checked_at": "2026-09-15" }] },
+    "CI": { "name": "China Airlines", "max_hours": 24, "confidence": "low", "note": "Industry convention; not verified against China Airlines' own pages.", "sources": [] },
+    "CX": { "name": "Cathay Pacific", "max_hours": 24, "confidence": "low", "note": "Industry convention; unverified.", "sources": [] },
+    "SQ": { "name": "Singapore Airlines", "max_hours": 24, "confidence": "low", "note": "Industry convention; unverified.", "sources": [] },
+    "TK": { "name": "Turkish Airlines", "max_hours": 24, "confidence": "low", "note": "Industry convention; unverified.", "sources": [] },
+    "EK": { "name": "Emirates", "max_hours": 24, "confidence": "low", "note": "Industry convention; unverified.", "sources": [] },
+    "QR": { "name": "Qatar Airways", "max_hours": 24, "confidence": "low", "note": "Industry convention; unverified.", "sources": [] },
+    "EY": { "name": "Etihad Airways", "max_hours": 24, "confidence": "low", "note": "Industry convention; unverified.", "sources": [] },
+    "AA": { "name": "American Airlines", "max_hours": 12, "extended_hours": 16.5, "extended_note": "Raised to roughly 16.5h on American and American-to-partner itineraries.", "confidence": "medium", "note": "WELL BELOW the 24h most non-US carriers allow. A 16h layover clears ANA's limit and fails American's base figure.", "sources": [{ "url": "https://viewfromthewing.com/american-airlines-will-allow-passengers-to-check-bags-on-longer-connections/", "checked_at": "2026-09-05" }] },
+    "UA": { "name": "United Airlines", "max_hours": 12, "confidence": "medium", "note": "Around 12h — well below the 24h convention elsewhere.", "sources": [{ "url": "https://www.flyertalk.com/forum/american-airlines-aadvantage/2068265-maximum-connection-time-through-checked-baggage.html", "checked_at": "2026-09-05" }] },
+    "DL": { "name": "Delta Air Lines", "max_hours": null, "confidence": "low", "note": "Reported to through-check generally on a single ticket, with no widely quoted hour limit. Treated as unknown rather than unlimited.", "sources": [] },
+    "AC": { "name": "Air Canada", "max_hours": null, "confidence": "low", "note": "Not researched.", "sources": [] }
+  }
+}

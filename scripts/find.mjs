@@ -11,6 +11,7 @@
  *   --min=8 --max=36  layover band in hours
  *   --gateways=4      how many connection cities to price (each costs API calls)
  *   --limit=6         how many candidates to print
+ *   --window=6-18     narrow the day to one 12h window (halves quota, misses evening flights)
  *   --no-cache        bypass the disk cache
  *
  * Results are CANDIDATES, not quotes: these flights operate on these dates and
@@ -21,7 +22,7 @@
 import { createAeroDataBoxSource } from '../src/adapters/aerodatabox.mjs';
 import { withDiskCache } from '../src/adapters/cache.mjs';
 import { createSearch } from '../src/engine/search.mjs';
-import { network, entryRules, PROGRAMS_CHECKED_AT } from '../src/engine/data-node.mjs';
+import { network, entryRules, baggageRules, PROGRAMS_CHECKED_AT } from '../src/engine/data-node.mjs';
 import { formatMinutes } from '../src/engine/time.mjs';
 
 const args = process.argv.slice(2);
@@ -41,7 +42,7 @@ if (!process.env.RAPIDAPI_KEY) {
 
 const raw = createAeroDataBoxSource({ apiKey: process.env.RAPIDAPI_KEY });
 const source = flags['no-cache'] ? raw : withDiskCache({ source: raw, verbose: true });
-const search = createSearch({ source, network, entryRules });
+const search = createSearch({ source, network, entryRules, baggageRules });
 
 const O = network.airport(origin);
 const D = network.airport(destination);
@@ -58,6 +59,9 @@ try {
     minLayoverHours: Number(flags.min ?? 8),
     maxLayoverHours: Number(flags.max ?? 36),
     maxGateways: Number(flags.gateways ?? 4),
+    ...(flags.window
+      ? { windows: [flags.window.split('-').map(Number)] }
+      : {}),
   });
 } catch (err) {
   // A failed lookup is an ordinary outcome here, not a crash. Say what happened
@@ -136,6 +140,15 @@ if (!res.candidates.length) {
       }
     }
     if (c.entryChange) console.log(`  ⚠ ${c.entryChange.text}`);
+    if (c.baggage) {
+      const mark = c.baggage.status === 'through_checked' ? '  ★'
+        : c.baggage.status === 'recheck' ? '  ⚠' : '  ·';
+      console.log(`${mark} Bag: ${c.baggage.text}`);
+      if (c.baggage.koreanCustoms) {
+        console.log('  ⚠ Korean customs require collecting your bag at the first point of entry, '
+          + 'whatever the tag says.');
+      }
+    }
 
     console.log(`\n  → Confirm price and availability in ${c.leg1.carrier}'s multi-city search.`);
   }

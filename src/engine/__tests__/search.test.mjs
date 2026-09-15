@@ -31,7 +31,9 @@ const BOARDS = {
     flight('NH', 'NH 177', 'NRT', '2026-10-13T20:35:00Z', '2026-10-14T07:25:00Z'),
     flight('DL', 'DL 9', 'ICN', '2026-10-13T18:00:00Z', '2026-10-14T05:00:00Z'),
   ],
-  'NRT_2026-10-14': [
+  // Leg 1 lands 2026-10-14 Tokyo local (the date line eats a day), so the
+  // next-morning departure sits on the FIFTEENTH's board, not the fourteenth's.
+  'NRT_2026-10-15': [
     flight('NH', 'NH 867', 'ICN', '2026-10-15T00:00:00Z', '2026-10-15T02:35:00Z'),
     flight('NH', 'NH 999', 'BKK', '2026-10-15T01:00:00Z', '2026-10-15T07:00:00Z'),
   ],
@@ -65,8 +67,12 @@ describe('findOvernightCandidates', () => {
     const source = fakeSource(BOARDS);
     const search = createSearch({ source, network, entryRules });
     const res = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13', { maxGateways: 4 });
-    assert.equal(source.calls(), res.apiCalls);
-    assert.ok(source.calls() <= 3, `expected a handful of calls, got ${source.calls()}`);
+    // The assertion is the RELATIONSHIP, not a magic number: calls scale with
+    // gateways actually reached, never with the gateways the graph proposed.
+    assert.equal(source.calls(), res.apiCalls, 'reported call count must match reality');
+    const reached = new Set(res.candidates.map((c) => c.gateway)).size;
+    assert.ok(source.calls() <= 2 + reached * 4,
+      `calls (${source.calls()}) must scale with gateways reached (${reached}), not proposed (${res.gateways.length})`);
   });
 
   test('a route with no gateway costs zero API calls', async () => {
@@ -120,7 +126,7 @@ describe('findOvernightCandidates', () => {
   test('entry is evaluated against the layover date, not today', async () => {
     const source = fakeSource({
       'SEA_2026-12-29': [flight('NH', 'NH 177', 'NRT', '2026-12-29T20:35:00Z', '2026-12-30T07:25:00Z')],
-      'NRT_2026-12-30': [flight('NH', 'NH 867', 'ICN', '2026-12-31T00:00:00Z', '2026-12-31T02:35:00Z')],
+      'NRT_2026-12-31': [flight('NH', 'NH 867', 'ICN', '2026-12-31T00:00:00Z', '2026-12-31T02:35:00Z')],
     });
     const search = createSearch({ source, network, entryRules });
     const { candidates } = await search.findOvernightCandidates('SEA', 'ICN', '2026-12-29');
@@ -134,7 +140,7 @@ describe('findOvernightCandidates', () => {
   test('flights with no arrival time cannot form a layover and are dropped', async () => {
     const source = fakeSource({
       'SEA_2026-10-13': [flight('NH', 'NH 177', 'NRT', '2026-10-13T20:35:00Z', null)],
-      'NRT_2026-10-14': [flight('NH', 'NH 867', 'ICN', '2026-10-15T00:00:00Z', '2026-10-15T02:35:00Z')],
+      'NRT_2026-10-15': [flight('NH', 'NH 867', 'ICN', '2026-10-15T00:00:00Z', '2026-10-15T02:35:00Z')],
     });
     const search = createSearch({ source, network, entryRules });
     const { candidates, reason } = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13');
@@ -143,7 +149,7 @@ describe('findOvernightCandidates', () => {
   });
 
   test('reports why it found nothing, rather than just nothing', async () => {
-    const source = fakeSource({ 'SEA_2026-10-13': [], 'NRT_2026-10-14': [] });
+    const source = fakeSource({ 'SEA_2026-10-13': [], 'NRT_2026-10-15': [] });
     const search = createSearch({ source, network, entryRules });
     const res = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13');
     assert.equal(res.reason, 'no-outbound-flights');
@@ -222,5 +228,95 @@ describe('entry rules are never silently skipped', () => {
     assert.equal(network.airport('YVR').countryCode, 'CA');
     assert.equal(network.airport('PEK').countryCode, 'CN');
     assert.equal(network.airport('NRT').countryCode, 'JP');
+  });
+});
+
+describe('day coverage', () => {
+  test('an EVENING departure is found — the old 06:00-18:00 window missed these', () => {
+    // Seattle's long-haul flights to Asia largely leave in the afternoon and
+    // evening. A 20:15 departure was structurally invisible to the tool that
+    // exists to find exactly this routing.
+    const boards = {
+      'SEA_2026-10-13|12-24': [flight('NH', 'NH 177', 'NRT', '2026-10-13T20:15:00Z', '2026-10-14T07:25:00Z')],
+      'NRT_2026-10-15|0-12': [flight('NH', 'NH 867', 'ICN', '2026-10-15T00:00:00Z', '2026-10-15T02:35:00Z')],
+    };
+    const source = {
+      calls: 0,
+      async getDepartures(airport, date, { fromHour, toHour }) {
+        this.calls += 1;
+        return (boards[`${airport}_${date}|${fromHour}-${toHour}`] ?? []).map((f) => ({
+          ...f,
+          departureUtc: f.departureUtc ? new Date(f.departureUtc) : null,
+          arrivalUtc: f.arrivalUtc ? new Date(f.arrivalUtc) : null,
+        }));
+      },
+    };
+    const search = createSearch({ source, network, entryRules });
+    return search.findOvernightCandidates('SEA', 'ICN', '2026-10-13').then(({ candidates }) => {
+      assert.ok(candidates.some((c) => c.leg1.flightNumber === 'NH 177'),
+        'the evening departure must be found');
+    });
+  });
+
+  test('a boundary flight returned by two windows is not counted twice', async () => {
+    const dupe = flight('NH', 'NH 177', 'NRT', '2026-10-13T12:00:00Z', '2026-10-13T23:00:00Z');
+    const source = {
+      async getDepartures() {
+        return [dupe].map((f) => ({
+          ...f,
+          departureUtc: new Date(f.departureUtc),
+          arrivalUtc: new Date(f.arrivalUtc),
+        }));
+      },
+    };
+    const search = createSearch({ source, network, entryRules });
+    const { candidates } = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13');
+    // Same flight from both windows on leg 1 must not produce duplicate pairings.
+    const leg1s = candidates.filter((c) => c.leg1.flightNumber === 'NH 177');
+    assert.ok(leg1s.length <= 1, `expected no duplicate leg 1, got ${leg1s.length}`);
+  });
+
+  test('narrowing the windows trades coverage for quota, and says so in apiCalls', async () => {
+    const source = { async getDepartures() { return []; } };
+    const search = createSearch({ source, network, entryRules });
+    const full = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13');
+    const narrow = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13',
+      { windows: [[6, 18]] });
+    assert.equal(full.apiCalls, 2, 'a full day is two calls for the origin board');
+    assert.equal(narrow.apiCalls, 1, 'one window is one call');
+    assert.ok(narrow.apiCalls < full.apiCalls, 'narrowing trades coverage for quota');
+  });
+});
+
+describe('the date line', () => {
+  test('REGRESSION: onward boards follow the gateway local arrival date', async () => {
+    // SEA→NRT departs the 13th in Seattle and lands the 14th in Tokyo, so the
+    // next-morning departure is on the FIFTEENTH's board. Deriving board dates
+    // from the origin's departure date fetched the 13th and 14th and found
+    // nothing — silently, and only for routes that cross the date line, which
+    // is every routing through Asia.
+    const asked = [];
+    const source = {
+      async getDepartures(airport, date) {
+        asked.push(`${airport}_${date}`);
+        const boards = {
+          'SEA_2026-10-13': [flight('NH', 'NH 177', 'NRT', '2026-10-13T20:35:00Z', '2026-10-14T07:25:00Z')],
+          'NRT_2026-10-15': [flight('NH', 'NH 867', 'ICN', '2026-10-15T00:00:00Z', '2026-10-15T02:35:00Z')],
+        };
+        return (boards[`${airport}_${date}`] ?? []).map((f) => ({
+          ...f,
+          departureUtc: new Date(f.departureUtc),
+          arrivalUtc: f.arrivalUtc ? new Date(f.arrivalUtc) : null,
+        }));
+      },
+    };
+    const search = createSearch({ source, network, entryRules });
+    const { candidates } = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13');
+
+    assert.ok(asked.some((a) => a === 'NRT_2026-10-15'),
+      `must request the arrival-date board; asked for ${[...new Set(asked)].join(', ')}`);
+    assert.ok(!asked.includes('NRT_2026-10-13'), 'must not request the departure-date board');
+    assert.equal(candidates.length, 1, 'the Tokyo overnight must be found');
+    assert.equal(candidates[0].layover.minutes, 16 * 60 + 35);
   });
 });
