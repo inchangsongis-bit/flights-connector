@@ -192,3 +192,49 @@ describe('createAeroDataBoxSource', () => {
     await assert.rejects(src.getDepartures('SEA', '2026-10-13'), /returned non-JSON/);
   });
 });
+
+describe('time window construction', () => {
+  const capture = () => {
+    const seen = [];
+    const src = createAeroDataBoxSource({
+      apiKey: 'k',
+      fetchImpl: async (url) => { seen.push(url); return { ok: true, status: 200, text: async () => '{"departures":[]}' }; },
+    });
+    return { seen, src };
+  };
+
+  test('REGRESSION: hour 24 is clamped — "T24:00" is not a time and 404s', async () => {
+    // The full-day default is [[0,12],[12,24]], which is the natural way to
+    // write it. The API answered 404 on the second window and the whole search
+    // failed. Tests only ever used 6-18, so nothing caught it.
+    const { seen, src } = capture();
+    await src.getDepartures('SEA', '2026-10-13', { fromHour: 12, toHour: 24 });
+    assert.match(seen[0], /2026-10-13T12:00\/2026-10-13T23:59/);
+    assert.ok(!seen[0].includes('T24:00'), 'hour 24 must never reach the API');
+  });
+
+  test('a full day is two valid windows', async () => {
+    const { seen, src } = capture();
+    for (const [from, to] of [[0, 12], [12, 24]]) {
+      await src.getDepartures('SEA', '2026-10-13', { fromHour: from, toHour: to });
+    }
+    assert.match(seen[0], /T00:00\/2026-10-13T12:00/);
+    assert.match(seen[1], /T12:00\/2026-10-13T23:59/);
+    assert.ok(seen.every((u) => !/T2[4-9]:|T[3-9]\d:/.test(u)), 'no impossible hours');
+  });
+
+  test('ordinary windows are untouched', async () => {
+    const { seen, src } = capture();
+    await src.getDepartures('SEA', '2026-10-13', { fromHour: 6, toHour: 18 });
+    assert.match(seen[0], /T06:00\/2026-10-13T18:00/);
+  });
+
+  test('a 404 names the likely cause rather than just the status', async () => {
+    const src = createAeroDataBoxSource({
+      apiKey: 'k',
+      fetchImpl: async () => ({ ok: false, status: 404, text: async () => '' }),
+    });
+    await assert.rejects(src.getDepartures('SEA', '2026-10-13', { fromHour: 0, toHour: 12 }),
+      /malformed time range|unknown airport/i);
+  });
+});

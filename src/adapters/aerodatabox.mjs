@@ -157,8 +157,13 @@ export function createAeroDataBoxSource({ apiKey, fetchImpl = fetch }) {
    */
   async function getDepartures(airport, date, { fromHour = 6, toHour = 18 } = {}) {
     const pad = (n) => String(n).padStart(2, '0');
+    // Hour 24 does not exist. A caller asking for a full day naturally writes
+    // [12, 24], but "2026-10-13T24:00" is not a time and the API answers 404.
+    // Clamp to the last minute of the day rather than making every caller
+    // remember this.
+    const endOfDay = (h) => (h >= 24 ? '23:59' : `${pad(h)}:00`);
     const url = `https://${HOST}/flights/airports/iata/${airport}`
-      + `/${date}T${pad(fromHour)}:00/${date}T${pad(toHour)}:00`
+      + `/${date}T${pad(fromHour)}:00/${date}T${endOfDay(toHour)}`
       + '?direction=Departure&withLeg=true&withCancelled=false&withCodeshared=false'
       + '&withCargo=false&withPrivate=false&withLocation=false';
 
@@ -170,6 +175,11 @@ export function createAeroDataBoxSource({ apiKey, fetchImpl = fetch }) {
     if (res.status === 429) throw new Error('429 — AeroDataBox quota exhausted for this period.');
     if (res.status === 403 && !/message|subscribe/i.test(body)) {
       throw new Error(`403 with no RapidAPI body — an egress proxy is blocking ${HOST}, not a key problem.`);
+    }
+    if (res.status === 404) {
+      throw new Error(`404 from AeroDataBox for ${airport} ${date} ${pad(fromHour)}:00-${endOfDay(toHour)}. `
+        + 'Usually a malformed time range (the window must be a real time, at most 12 hours) '
+        + `or an unknown airport code. ${body.slice(0, 160)}`);
     }
     if (!res.ok) throw new Error(`${res.status} from AeroDataBox: ${body.slice(0, 200)}`);
 
