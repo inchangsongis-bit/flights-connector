@@ -29,6 +29,16 @@ export function toExportPayload({ query, result, generatedAt = new Date() }) {
     query,
     apiCalls: result.apiCalls,
     reason: result.reason ?? null,
+    trimmed: result.trimmed ?? 0,
+    perGateway: result.perGateway ?? {},
+    nonstop: result.nonstop && {
+      carrier: result.nonstop.carrier,
+      flightNumber: result.nonstop.flightNumber,
+      minutes: result.nonstop.minutes,
+      departureLocal: result.nonstop.departureLocal ?? null,
+      arrivalLocal: result.nonstop.arrivalLocal ?? null,
+    },
+    nonstopCount: result.nonstops?.length ?? 0,
     gateways: result.gateways.map((g) => ({
       via: g.via,
       city: g.viaCity,
@@ -53,6 +63,7 @@ export function toExportPayload({ query, result, generatedAt = new Date() }) {
       isOvernight: c.layover.isOvernight,
       nightsRequired: c.layover.nightsRequired,
       usableCityHours: c.usableCityHours,
+      vsNonstop: c.vsNonstop ?? null,
       ticketability: c.ticketability,
       programHighlights: c.program?.highlights ?? [],
       entry: c.entry && {

@@ -81,6 +81,8 @@ const DEFAULT = {
   windows: [[0, 12], [12, 24]],
   onlySameCarrier: false,
   passport: 'US',
+  /** Cap per gateway. 150 raw pairings is leg1 x leg2 combinatorics, not 150 choices. */
+  perGateway: 3,
   /** Refuse to start a search that would cost more than this many calls. */
   maxApiCalls: 24,
 };
@@ -121,11 +123,31 @@ export function createSearch({ source, network, entryRules = null, baggageRules 
 
     // ── 2. Schedules, shortlist only ────────────────────────────────────────
     const perDay = opt.windows.length;
-    const outbound = (await fetchDay(source, origin, date, opt.windows))
-      .filter((f) => wanted.has(f.destination) && f.arrivalUtc);
+    const originBoard = await fetchDay(source, origin, date, opt.windows);
+
+    // The nonstop comparison is FREE: it is already on the board we just paid
+    // for. Without it the app can show a routing but not answer the question
+    // that actually decides a trip — is the detour worth it?
+    const destinations = new Set(network.expandToAirports(destination));
+    const nonstops = originBoard
+      .filter((f) => destinations.has(f.destination) && f.arrivalUtc && f.departureUtc)
+      .map((f) => ({
+        carrier: f.carrier,
+        flightNumber: f.flightNumber,
+        destination: f.destination,
+        departureUtc: f.departureUtc,
+        arrivalUtc: f.arrivalUtc,
+        departureLocal: f.departureLocal,
+        arrivalLocal: f.arrivalLocal,
+        minutes: (f.arrivalUtc - f.departureUtc) / 60000,
+      }))
+      .sort((a, b) => a.minutes - b.minutes);
+    const nonstop = nonstops[0] ?? null;
+
+    const outbound = originBoard.filter((f) => wanted.has(f.destination) && f.arrivalUtc);
 
     if (!outbound.length) {
-      return { candidates: [], gateways, reason: 'no-outbound-flights', apiCalls: perDay };
+      return { candidates: [], gateways, nonstop, nonstops, reason: 'no-outbound-flights', apiCalls: perDay };
     }
 
     // Which gateway boards to fetch, derived from each leg's actual arrival
@@ -159,7 +181,7 @@ export function createSearch({ source, network, entryRules = null, baggageRules 
     }
     if (opt.onPlan) opt.onPlan(budget);
     if (opt.dryRun) {
-      return { candidates: [], gateways, reason: 'dry-run', apiCalls: perDay, budget,
+      return { candidates: [], gateways, nonstop, nonstops, reason: 'dry-run', apiCalls: perDay, budget,
         plan: [...plan.entries()].map(([gw, boards]) => ({
           gateway: gw, boards: [...boards.values()].map((b) => `${b.date} ${b.window.join('-')}`),
         })) };
@@ -244,17 +266,51 @@ export function createSearch({ source, network, entryRules = null, baggageRules 
           entry,
           entryChange,
           baggage,
+          // What the detour actually costs in time, against the fastest nonstop
+          // on the same day. Null when no nonstop exists — which is itself worth
+          // knowing, since then the layover is not a choice but the only way.
+          vsNonstop: nonstop ? {
+            nonstopMinutes: nonstop.minutes,
+            nonstopCarrier: nonstop.carrier,
+            nonstopFlight: nonstop.flightNumber,
+            totalMinutes: (leg2.arrivalUtc ?? leg2.departureUtc) - leg1.departureUtc >= 0
+              ? ((leg2.arrivalUtc ?? leg2.departureUtc) - leg1.departureUtc) / 60000
+              : null,
+          } : null,
           booking: null, // filled below, once origin/destination are known on the object
         });
       }
     }
 
-    // Booking links need the finished candidate (origin, gateway, destination).
-    if (bookingLinks) for (const c of candidates) c.booking = bookingLinks.forCandidate(c);
+    for (const c of candidates) {
+      if (c.vsNonstop?.totalMinutes != null) {
+        c.vsNonstop.extraMinutes = c.vsNonstop.totalMinutes - c.vsNonstop.nonstopMinutes;
+      }
+      // Booking links need the finished candidate (origin, gateway, destination).
+      if (bookingLinks) c.booking = bookingLinks.forCandidate(c);
+    }
 
     candidates.sort((a, b) => score(a) - score(b));
+
+    // Cap per gateway. The raw list is leg1 x leg2 combinatorics — a live search
+    // returned 150 pairings across four cities, which is not 150 choices.
+    const kept = [];
+    const perGatewayCount = new Map();
+    let trimmed = 0;
+    for (const c of candidates) {
+      const n = perGatewayCount.get(c.gateway) ?? 0;
+      if (n >= opt.perGateway) { trimmed += 1; continue; }
+      perGatewayCount.set(c.gateway, n + 1);
+      kept.push(c);
+    }
+
     return {
-      candidates,
+      candidates: kept,
+      allCandidates: candidates,
+      trimmed,
+      perGateway: Object.fromEntries(perGatewayCount),
+      nonstop,
+      nonstops,
       gateways,
       reason: candidates.length ? null : 'no-pairings-in-window',
       apiCalls: perDay + onwardFetches,

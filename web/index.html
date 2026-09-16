@@ -181,6 +181,20 @@ button,input,select{font:inherit;color:inherit}
 .legs b{color:var(--ink);font-weight:500}
 .legs .gap{color:var(--amber);padding:3px 0}
 
+/* ── nonstop baseline ─────────────────────────────── */
+.baseline{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;
+  padding:11px 14px;border-bottom:1px solid var(--rule);background:var(--surface-2)}
+.baseline .tag{font-family:var(--mono);font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3)}
+.baseline .val{font-family:var(--mono);font-size:15px;font-weight:600;
+  font-variant-numeric:tabular-nums}
+.baseline .say{font-size:13px;color:var(--ink-2)}
+.cost{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;
+  color:var(--ink-2);margin-bottom:8px;padding:7px 10px;background:var(--ground);
+  border-left:3px solid var(--rule-strong)}
+.cost b{color:var(--ink);font-weight:600}
+.cost .buy{color:var(--amber)}
+
 /* ── booking handoff ──────────────────────────────── */
 .book{margin-top:12px;padding-top:12px;border-top:1px solid var(--rule)}
 .book-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
@@ -576,14 +590,36 @@ function renderLive(data) {
 
   el.innerHTML = `<section class="live">
     <div class="live-head">
-      <h2>${data.candidates.length} real routing${data.candidates.length === 1 ? '' : 's'} ·
+      <h2>${data.candidates.length} real routing${data.candidates.length === 1 ? '' : 's'}${
+        data.trimmed ? ` (+${data.trimmed} trimmed)` : ''} ·
         ${esc(q.origin ?? '')} → ${esc(q.destination ?? '')} ${esc(q.date ?? '')}</h2>
       <span class="when">searched ${age < 1 ? 'just now' : `${age}h ago`} ·
         ${data.apiCalls ?? '?'} api calls</span>
     </div>
+    ${baselineHtml(data)}
     ${data.candidates.map(liveCard).join('')}
   </section>`;
 }
+
+/** Every option is really being judged against the nonstop, so say what it is. */
+function baselineHtml(data) {
+  if (!data.nonstop) {
+    return `<div class="baseline"><span class="tag">no nonstop</span>
+      <span class="say">There is no direct flight on this date — a layover is not a choice here,
+      it is the only way.</span></div>`;
+  }
+  const n = data.nonstop;
+  return `<div class="baseline">
+    <span class="tag">nonstop baseline</span>
+    <span class="val">${esc(n.carrier ?? '')} ${esc(n.flightNumber ?? '')}</span>
+    <span class="val">${fmtMins(n.minutes)}</span>
+    <span class="say">${data.nonstopCount} nonstop${data.nonstopCount === 1 ? '' : 's'} that day.
+      Everything below is measured against this.</span>
+  </div>`;
+}
+
+const fmtMins = (m) => (m == null ? '?'
+  : `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`);
 
 function liveCard(c) {
   const isStopover = c.layoverClass === 'stopover';
@@ -626,6 +662,11 @@ function liveCard(c) {
       <span class="dial-label">~${(c.usableCityHours ?? 0).toFixed(1)}h usable ·
         ${c.detourRatio ? `${c.detourRatio.toFixed(2)}×` : ''}</span>
     </div>
+    ${c.vsNonstop?.extraMinutes != null ? `<div class="cost">
+      <b>+${fmtMins(c.vsNonstop.extraMinutes)}</b> total travel vs the nonstop
+      (${fmtMins(c.vsNonstop.totalMinutes)} against ${fmtMins(c.vsNonstop.nonstopMinutes)})
+      — buying <span class="buy">~${(c.usableCityHours ?? 0).toFixed(1)}h in ${esc(c.gatewayCity ?? c.gateway)}</span>
+    </div>` : ''}
     <div class="legs">
       <div><b>${esc(c.leg1.carrier ?? '')} ${esc(c.leg1.flightNumber ?? '')}</b>
         ${esc(c.leg1.departureLocal ?? c.leg1.departureUtc ?? '')} →

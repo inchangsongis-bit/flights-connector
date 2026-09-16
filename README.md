@@ -97,6 +97,8 @@ P1 is a live schedule feed, which is gated on the P0 probe.
 | Live schedules in the web UI | Done — `npm run find -- … --json` |
 | Baggage through-check rules | Done — `data/baggage-rules.json` |
 | **Booking handoff** | **✅ verified** — one click opens both legs in Google Flights, priced as one ticket |
+| Nonstop baseline | Done — free from the origin board; every option shows what the detour costs |
+| Result capping | Done — best few per gateway, not every leg-1 × leg-2 pairing |
 
 ```bash
 # live search — needs a free RapidAPI key for AeroDataBox

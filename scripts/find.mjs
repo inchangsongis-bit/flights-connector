@@ -13,6 +13,7 @@
  *   --budget=24       refuse to start a search costing more than this many calls
  *   --dry-run         show the fetch plan and its cost without spending it
  *   --limit=6         how many candidates to print
+ *   --per-gateway=3   how many options to keep per connection city
  *   --window=6-18     narrow the day to one 12h window (halves quota, misses evening flights)
  *   --no-cache        bypass the disk cache
  *   --json[=path]     also write results to web/results.json, which the Layover
@@ -68,6 +69,7 @@ try {
     minLayoverHours: Number(flags.min ?? 8),
     maxLayoverHours: Number(flags.max ?? 36),
     maxGateways: Number(flags.gateways ?? 3),
+    perGateway: Number(flags['per-gateway'] ?? 3),
     maxApiCalls: Number(flags.budget ?? 24),
     dryRun: Boolean(flags['dry-run']),
     onPlan: (b) => console.log(`\n  Plan: ${b.estimate} API call(s) across `
@@ -89,6 +91,16 @@ try {
   }
   console.error('');
   process.exit(1);
+}
+
+// The nonstop is the thing every candidate is really being judged against.
+if (res.nonstop) {
+  const n = res.nonstop;
+  console.log(`\nNONSTOP BASELINE  ${n.carrier} ${n.flightNumber}  ${formatMinutes(n.minutes)}`
+    + `  ${n.departureLocal ?? n.departureUtc.toISOString()}`);
+  console.log(`  ${res.nonstops.length} nonstop(s) that day. Every option below is measured against this.`);
+} else {
+  console.log('\nNO NONSTOP on this date — a layover is not a choice here, it is the only way.');
 }
 
 console.log(`\nGateways considered (from the offline route graph, no API calls):`);
@@ -130,8 +142,12 @@ if (!res.candidates.length) {
   console.log(`\n${'═'.repeat(74)}`);
   console.log(`${res.candidates.length} CANDIDATE(S)`
     + `${stopovers ? ` — ${stopovers} over the 24-hour stopover line` : ''}`);
+  if (res.trimmed) {
+    console.log(`Best ${Object.entries(res.perGateway).map(([g, n]) => `${n} via ${g}`).join(', ')}`
+      + ` — ${res.trimmed} further pairing(s) trimmed (--per-gateway to change).`);
+  }
   if (res.candidates.length > shown.length) {
-    console.log(`Showing the best ${shown.length}. Use --limit=${res.candidates.length} for all.`);
+    console.log(`Showing ${shown.length}. Use --limit=${res.candidates.length} for all.`);
   }
 
   for (const c of shown) {
@@ -155,6 +171,12 @@ if (!res.candidates.length) {
 
     console.log(`\n  ticketing   ${c.ticketability.note}`);
     console.log(`  detour      ${c.detourRatio?.toFixed(2) ?? '?'}× the nonstop distance`);
+    if (c.vsNonstop?.extraMinutes != null) {
+      console.log(`  vs nonstop  +${formatMinutes(c.vsNonstop.extraMinutes)} total travel `
+        + `(${formatMinutes(c.vsNonstop.totalMinutes)} vs ${formatMinutes(c.vsNonstop.nonstopMinutes)} `
+        + `on ${c.vsNonstop.nonstopCarrier} ${c.vsNonstop.nonstopFlight}) `
+        + `— buying ~${c.usableCityHours.toFixed(1)}h in ${c.gatewayCity}`);
+    }
 
     for (const h of c.program?.highlights ?? []) {
       const mark = h.kind === 'hotel_disqualified' ? '  ⚠' : h.kind === 'below_stopover_threshold' ? '  ·' : '  ★';

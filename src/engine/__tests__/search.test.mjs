@@ -437,3 +437,98 @@ describe('exported payload', () => {
     assert.equal(JSON.parse(JSON.stringify(payload)).candidates[0].origin, 'SEA', 'survives a JSON round trip');
   });
 });
+
+describe('nonstop baseline', () => {
+  const withNonstop = {
+    'SEA_2026-10-13': [
+      flight('DL', 'DL 197', 'ICN', '2026-10-13T20:00:00Z', '2026-10-14T07:20:00Z'),
+      flight('NH', 'NH 177', 'NRT', '2026-10-13T20:35:00Z', '2026-10-14T07:25:00Z'),
+    ],
+    'NRT_2026-10-15': [flight('NH', 'NH 867', 'ICN', '2026-10-15T00:00:00Z', '2026-10-15T02:35:00Z')],
+  };
+
+  test('the nonstop comes free from the board already fetched', async () => {
+    const source = fakeSource(withNonstop);
+    const search = createSearch({ source, network, entryRules });
+    const before = source.calls();
+    const res = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13', { maxApiCalls: 99 });
+
+    assert.ok(res.nonstop, 'a nonstop on the origin board must be found');
+    assert.equal(res.nonstop.flightNumber, 'DL 197');
+    assert.equal(res.nonstop.minutes, 11 * 60 + 20);
+    assert.equal(source.calls() - before, res.apiCalls, 'and costs no extra calls');
+  });
+
+  test('each candidate says what the detour costs in time', async () => {
+    const source = fakeSource(withNonstop);
+    const search = createSearch({ source, network, entryRules });
+    const { candidates } = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13', { maxApiCalls: 99 });
+    const c = candidates.find((x) => x.gateway === 'NRT');
+
+    assert.equal(c.vsNonstop.nonstopMinutes, 11 * 60 + 20);
+    assert.equal(c.vsNonstop.totalMinutes, 30 * 60);
+    assert.equal(c.vsNonstop.extraMinutes, 30 * 60 - (11 * 60 + 20));
+  });
+
+  test('the nonstop is NOT offered as a layover candidate', async () => {
+    const source = fakeSource(withNonstop);
+    const search = createSearch({ source, network, entryRules });
+    const { candidates } = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13', { maxApiCalls: 99 });
+    assert.ok(!candidates.some((c) => c.leg1.flightNumber === 'DL 197'));
+  });
+
+  test('no nonstop is itself a finding — the layover is then the only way', async () => {
+    const source = fakeSource(BOARDS);
+    const search = createSearch({ source, network, entryRules });
+    const res = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13', { maxApiCalls: 99 });
+    // BOARDS has a DL nonstop, so remove it for this case.
+    const noDirect = fakeSource({ ...BOARDS, 'SEA_2026-10-13': BOARDS['SEA_2026-10-13'].slice(0, 1) });
+    const res2 = await createSearch({ source: noDirect, network, entryRules })
+      .findOvernightCandidates('SEA', 'ICN', '2026-10-13', { maxApiCalls: 99 });
+    assert.ok(res.nonstop || res2.nonstop === null);
+    assert.equal(res2.nonstop, null);
+    assert.ok(res2.candidates.every((c) => c.vsNonstop === null),
+      'with no baseline, no comparison is invented');
+  });
+});
+
+describe('per-gateway capping', () => {
+  const many = {
+    'SEA_2026-10-13': [flight('NH', 'NH 177', 'NRT', '2026-10-13T20:35:00Z', '2026-10-14T07:25:00Z')],
+    'NRT_2026-10-15': [
+      flight('NH', 'NH 861', 'ICN', '2026-10-15T00:00:00Z', '2026-10-15T02:35:00Z'),
+      flight('NH', 'NH 862', 'ICN', '2026-10-15T03:00:00Z', '2026-10-15T05:35:00Z'),
+      flight('NH', 'NH 863', 'ICN', '2026-10-15T06:00:00Z', '2026-10-15T08:35:00Z'),
+      flight('NH', 'NH 864', 'ICN', '2026-10-15T09:00:00Z', '2026-10-15T11:35:00Z'),
+      flight('NH', 'NH 865', 'ICN', '2026-10-15T11:00:00Z', '2026-10-15T13:35:00Z'),
+    ],
+  };
+
+  test('a city yields a few options, not every pairing', async () => {
+    // A live search returned 150 pairings across four cities. That is leg1 x leg2
+    // combinatorics, not 150 choices.
+    const search = createSearch({ source: fakeSource(many), network, entryRules });
+    const res = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13',
+      { maxApiCalls: 99, perGateway: 3 });
+    assert.equal(res.candidates.length, 3);
+    assert.equal(res.perGateway.NRT, 3);
+    assert.ok(res.trimmed > 0, 'and it reports what it held back');
+  });
+
+  test('the full list is still available for anyone who wants it', async () => {
+    const search = createSearch({ source: fakeSource(many), network, entryRules });
+    const res = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13',
+      { maxApiCalls: 99, perGateway: 3 });
+    assert.ok(res.allCandidates.length > res.candidates.length);
+    assert.equal(res.allCandidates.length, res.candidates.length + res.trimmed);
+  });
+
+  test('the ones kept are the best-ranked, not the first seen', async () => {
+    const search = createSearch({ source: fakeSource(many), network, entryRules });
+    const res = await search.findOvernightCandidates('SEA', 'ICN', '2026-10-13',
+      { maxApiCalls: 99, perGateway: 2 });
+    const keptUsable = res.candidates.map((c) => c.usableCityHours);
+    const allUsable = res.allCandidates.map((c) => c.usableCityHours).sort((a, b) => b - a);
+    assert.deepEqual(keptUsable.slice(0, 2).sort((a, b) => b - a), allUsable.slice(0, 2));
+  });
+});
